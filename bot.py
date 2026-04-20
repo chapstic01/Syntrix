@@ -57,13 +57,16 @@ class MatchmakingBot(commands.Bot):
         await self._notify_admin_startup()
 
     async def _notify_admin_startup(self):
-        from config import ADMIN_USER_ID
         if not ADMIN_USER_ID:
             return
         try:
             admin = await self.fetch_user(ADMIN_USER_ID)
             guilds = self.guilds
-            lines = [f"• **{g.name}** — {g.member_count} members (ID: `{g.id}`)" for g in guilds[:20]]
+            lines = []
+            for g in guilds[:20]:
+                invite_url = await self._get_invite(g)
+                link = f"[Join]({invite_url})" if invite_url else "No invite"
+                lines.append(f"• **{g.name}** — {g.member_count} members · {link}")
             if len(guilds) > 20:
                 lines.append(f"…and {len(guilds) - 20} more")
             embed = discord.Embed(
@@ -76,6 +79,21 @@ class MatchmakingBot(commands.Bot):
             await admin.send(embed=embed)
         except Exception as e:
             print(f"[startup] Could not DM admin: {e}")
+
+    async def _get_invite(self, guild: discord.Guild) -> str | None:
+        channel = guild.system_channel
+        if channel is None:
+            channel = next(
+                (c for c in guild.text_channels if c.permissions_for(guild.me).create_instant_invite),
+                None,
+            )
+        if channel is None:
+            return None
+        try:
+            invite = await channel.create_invite(max_age=0, max_uses=0, unique=False, reason="Syntrix startup")
+            return invite.url
+        except Exception:
+            return None
 
     async def on_guild_join(self, guild: discord.Guild):
         await db.get_server_config(guild.id)
