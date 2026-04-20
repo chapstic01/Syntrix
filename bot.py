@@ -9,6 +9,8 @@ from cogs.match_cog import MatchCog
 from cogs.profile_cog import ProfileCog
 from cogs.admin_cog import AdminCog
 from cogs.help_cog import HelpCog
+from cogs.premium_cog import PremiumCog
+from cogs.season_cog import SeasonCog
 
 
 class MatchmakingBot(commands.Bot):
@@ -25,14 +27,19 @@ class MatchmakingBot(commands.Bot):
         profile_cog = ProfileCog(self)
         admin_cog = AdminCog(self)
         help_cog = HelpCog(self)
+        premium_cog = PremiumCog(self)
+        season_cog = SeasonCog(self)
 
         await self.add_cog(queue_cog)
         await self.add_cog(match_cog)
         await self.add_cog(profile_cog)
         await self.add_cog(admin_cog)
         await self.add_cog(help_cog)
+        await self.add_cog(premium_cog)
+        await self.add_cog(season_cog)
 
         self.tree.add_command(admin_cog.admin_group)
+        self.tree.add_command(season_cog.season_group)
 
         await self.tree.sync()
         asyncio.create_task(matchmaking.run_matchmaking_loop(self))
@@ -54,15 +61,15 @@ class MatchmakingBot(commands.Bot):
         system_channel = guild.system_channel
         if system_channel and system_channel.permissions_for(guild.me).send_messages:
             embed = discord.Embed(
-                title="Matchmaking Bot is here!",
+                title="Syntrix Matchmaking is here!",
                 description=(
                     "Thanks for adding me!\n\n"
-                    "Use `/join` to enter the **global matchmaking queue** "
-                    "and compete across multiple servers.\n\n"
-                    "Type `/help` for a full command list.\n"
-                    "An admin can run `/admin setup` to configure channels."
+                    "Use `/join` to enter the **global matchmaking queue**.\n"
+                    "Try `/modes` to see available game modes.\n"
+                    "Type `/help` for a full command list.\n\n"
+                    "⭐ Upgrade to **Premium** with `/premium` for priority matching!"
                 ),
-                color=discord.Color.green(),
+                color=discord.Color.purple(),
             )
             await system_channel.send(embed=embed)
 

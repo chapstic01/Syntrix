@@ -1,11 +1,12 @@
 import asyncio
 import time
+from datetime import datetime
 from config import (
     ELO_K_FACTOR,
     MATCH_ELO_RANGE_START,
     QUEUE_EXPAND_INTERVAL,
     QUEUE_EXPAND_AMOUNT,
-    READY_CHECK_TIMEOUT,
+    PREMIUM_RANGE_MULTIPLIER,
 )
 import database as db
 
@@ -18,22 +19,11 @@ def calculate_elo(winner_elo: int, loser_elo: int) -> tuple[int, int]:
     return max(new_winner, 100), max(new_loser, 100)
 
 
-def elo_range_for_wait(joined_at_ts: float) -> int:
+def elo_range_for_wait(joined_at_ts: float, premium: bool = False) -> int:
     waited = time.time() - joined_at_ts
     expansions = int(waited // QUEUE_EXPAND_INTERVAL)
-    return MATCH_ELO_RANGE_START + expansions * QUEUE_EXPAND_AMOUNT
-
-
-async def find_match(player_id: int, player_elo: int, joined_at_ts: float) -> dict | None:
-    queue = await db.get_all_queue()
-    elo_range = elo_range_for_wait(joined_at_ts)
-
-    for entry in queue:
-        if entry["discord_id"] == player_id:
-            continue
-        if abs(entry["elo_at_join"] - player_elo) <= elo_range:
-            return entry
-    return None
+    base = MATCH_ELO_RANGE_START + expansions * QUEUE_EXPAND_AMOUNT
+    return round(base * PREMIUM_RANGE_MULTIPLIER) if premium else base
 
 
 async def run_matchmaking_loop(bot, interval: float = 5.0):
@@ -47,11 +37,21 @@ async def run_matchmaking_loop(bot, interval: float = 5.0):
 
 
 async def _tick(bot):
-    import time as _time
-    from datetime import datetime
+    modes = await db.get_queue_modes()
+    for mode in modes:
+        await _tick_mode(bot, mode["mode_id"])
 
-    queue = await db.get_all_queue()
-    matched = set()
+
+async def _tick_mode(bot, mode: str):
+    queue = await db.get_all_queue(mode=mode)
+    matched: set[int] = set()
+
+    premium_cache: dict[int, bool] = {}
+
+    async def is_premium(pid: int) -> bool:
+        if pid not in premium_cache:
+            premium_cache[pid] = await db.is_premium(pid)
+        return premium_cache[pid]
 
     for entry in queue:
         pid = entry["discord_id"]
@@ -59,19 +59,24 @@ async def _tick(bot):
             continue
 
         joined_ts = datetime.fromisoformat(entry["joined_at"]).timestamp()
-        elo_range = elo_range_for_wait(joined_ts)
+        p_premium = await is_premium(pid)
+        elo_range = elo_range_for_wait(joined_ts, premium=p_premium)
 
         for other in queue:
             oid = other["discord_id"]
             if oid == pid or oid in matched:
                 continue
-            if abs(other["elo_at_join"] - entry["elo_at_join"]) <= elo_range:
+
+            o_joined_ts = datetime.fromisoformat(other["joined_at"]).timestamp()
+            o_premium = await is_premium(oid)
+            o_range = elo_range_for_wait(o_joined_ts, premium=o_premium)
+
+            effective_range = max(elo_range, o_range)
+            if abs(other["elo_at_join"] - entry["elo_at_join"]) <= effective_range:
                 matched.add(pid)
                 matched.add(oid)
-
                 await db.dequeue(pid)
                 await db.dequeue(oid)
-
-                match_id = await db.create_match(pid, oid, entry["server_id"])
-                bot.dispatch("match_found", match_id, pid, oid)
+                match_id = await db.create_match(pid, oid, entry["server_id"], mode=mode)
+                bot.dispatch("match_found", match_id, pid, oid, mode)
                 break

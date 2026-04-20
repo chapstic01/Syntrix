@@ -1,6 +1,5 @@
 import aiosqlite
-import json
-from config import INITIAL_ELO
+from config import INITIAL_ELO, DEFAULT_QUEUE_MODES
 
 DB_PATH = "matchmaking.db"
 
@@ -30,18 +29,20 @@ async def init_db():
                 discord_id   INTEGER PRIMARY KEY,
                 server_id    INTEGER NOT NULL,
                 elo_at_join  INTEGER NOT NULL,
+                mode         TEXT NOT NULL DEFAULT 'ranked',
                 joined_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             );
 
             CREATE TABLE IF NOT EXISTS matches (
-                match_id     INTEGER PRIMARY KEY AUTOINCREMENT,
-                player1_id   INTEGER NOT NULL,
-                player2_id   INTEGER NOT NULL,
+                match_id      INTEGER PRIMARY KEY AUTOINCREMENT,
+                player1_id    INTEGER NOT NULL,
+                player2_id    INTEGER NOT NULL,
                 origin_server INTEGER,
-                status       TEXT DEFAULT 'pending',
-                winner_id    INTEGER,
-                created_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                completed_at TIMESTAMP
+                mode          TEXT NOT NULL DEFAULT 'ranked',
+                status        TEXT DEFAULT 'pending',
+                winner_id     INTEGER,
+                created_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                completed_at  TIMESTAMP
             );
 
             CREATE TABLE IF NOT EXISTS ready_checks (
@@ -54,14 +55,55 @@ async def init_db():
             );
 
             CREATE TABLE IF NOT EXISTS server_config (
-                server_id        INTEGER PRIMARY KEY,
-                queue_channel_id INTEGER,
+                server_id          INTEGER PRIMARY KEY,
+                queue_channel_id   INTEGER,
                 results_channel_id INTEGER,
-                settings         TEXT DEFAULT '{}'
+                settings           TEXT DEFAULT '{}'
+            );
+
+            CREATE TABLE IF NOT EXISTS premium_users (
+                discord_id   INTEGER PRIMARY KEY,
+                license_key  TEXT NOT NULL,
+                activated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                granted_by   INTEGER
+            );
+
+            CREATE TABLE IF NOT EXISTS seasons (
+                season_id    INTEGER PRIMARY KEY AUTOINCREMENT,
+                name         TEXT NOT NULL,
+                active       INTEGER DEFAULT 0,
+                started_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                ended_at     TIMESTAMP
+            );
+
+            CREATE TABLE IF NOT EXISTS season_history (
+                discord_id   INTEGER,
+                season_id    INTEGER,
+                final_elo    INTEGER,
+                wins         INTEGER,
+                losses       INTEGER,
+                rank_title   TEXT,
+                PRIMARY KEY (discord_id, season_id)
+            );
+
+            CREATE TABLE IF NOT EXISTS queue_modes (
+                mode_id      TEXT PRIMARY KEY,
+                display_name TEXT NOT NULL,
+                description  TEXT DEFAULT '',
+                enabled      INTEGER DEFAULT 1
             );
         """)
+
+        for mode_id, display_name, description in DEFAULT_QUEUE_MODES:
+            await db.execute(
+                "INSERT OR IGNORE INTO queue_modes (mode_id, display_name, description) VALUES (?, ?, ?)",
+                (mode_id, display_name, description),
+            )
+
         await db.commit()
 
+
+# ── Players ──────────────────────────────────────────────────────────────────
 
 async def get_or_create_player(discord_id: int, username: str) -> dict:
     async with aiosqlite.connect(DB_PATH) as db:
@@ -78,8 +120,7 @@ async def get_or_create_player(discord_id: int, username: str) -> dict:
         async with db.execute(
             "SELECT * FROM players WHERE discord_id = ?", (discord_id,)
         ) as cur:
-            row = await cur.fetchone()
-            return dict(row)
+            return dict(await cur.fetchone())
 
 
 async def get_player(discord_id: int) -> dict | None:
@@ -107,11 +148,45 @@ async def update_player_elo(discord_id: int, new_elo: int, won: bool):
         await db.commit()
 
 
-async def enqueue(discord_id: int, server_id: int, elo: int):
+async def set_player_elo_direct(discord_id: int, elo: int):
     async with aiosqlite.connect(DB_PATH) as db:
         await db.execute(
-            "INSERT OR REPLACE INTO queue (discord_id, server_id, elo_at_join) VALUES (?, ?, ?)",
-            (discord_id, server_id, elo),
+            "UPDATE players SET elo = ? WHERE discord_id = ?", (elo, discord_id)
+        )
+        await db.commit()
+
+
+async def reset_player_stats(discord_id: int):
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute(
+            "UPDATE players SET elo = ?, wins = 0, losses = 0 WHERE discord_id = ?",
+            (INITIAL_ELO, discord_id),
+        )
+        await db.commit()
+
+
+async def get_leaderboard(limit: int = 10) -> list[dict]:
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        async with db.execute(
+            """SELECT p.discord_id, p.username, p.elo, p.wins, p.losses,
+                      CASE WHEN pr.discord_id IS NOT NULL THEN 1 ELSE 0 END as is_premium
+               FROM players p
+               LEFT JOIN premium_users pr ON p.discord_id = pr.discord_id
+               WHERE p.wins + p.losses > 0
+               ORDER BY p.elo DESC LIMIT ?""",
+            (limit,),
+        ) as cur:
+            return [dict(r) for r in await cur.fetchall()]
+
+
+# ── Queue ─────────────────────────────────────────────────────────────────────
+
+async def enqueue(discord_id: int, server_id: int, elo: int, mode: str = "ranked"):
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute(
+            "INSERT OR REPLACE INTO queue (discord_id, server_id, elo_at_join, mode) VALUES (?, ?, ?, ?)",
+            (discord_id, server_id, elo, mode),
         )
         await db.commit()
 
@@ -132,21 +207,30 @@ async def get_queue_entry(discord_id: int) -> dict | None:
             return dict(row) if row else None
 
 
-async def get_all_queue() -> list[dict]:
+async def get_all_queue(mode: str | None = None) -> list[dict]:
     async with aiosqlite.connect(DB_PATH) as db:
         db.row_factory = aiosqlite.Row
-        async with db.execute(
-            "SELECT q.*, p.username FROM queue q JOIN players p ON q.discord_id = p.discord_id ORDER BY q.joined_at"
-        ) as cur:
-            rows = await cur.fetchall()
-            return [dict(r) for r in rows]
+        if mode:
+            sql = """SELECT q.*, p.username FROM queue q
+                     JOIN players p ON q.discord_id = p.discord_id
+                     WHERE q.mode = ? ORDER BY q.joined_at"""
+            params = (mode,)
+        else:
+            sql = """SELECT q.*, p.username FROM queue q
+                     JOIN players p ON q.discord_id = p.discord_id
+                     ORDER BY q.joined_at"""
+            params = ()
+        async with db.execute(sql, params) as cur:
+            return [dict(r) for r in await cur.fetchall()]
 
 
-async def create_match(player1_id: int, player2_id: int, server_id: int) -> int:
+# ── Matches ───────────────────────────────────────────────────────────────────
+
+async def create_match(player1_id: int, player2_id: int, server_id: int, mode: str = "ranked") -> int:
     async with aiosqlite.connect(DB_PATH) as db:
         cur = await db.execute(
-            "INSERT INTO matches (player1_id, player2_id, origin_server) VALUES (?, ?, ?)",
-            (player1_id, player2_id, server_id),
+            "INSERT INTO matches (player1_id, player2_id, origin_server, mode) VALUES (?, ?, ?, ?)",
+            (player1_id, player2_id, server_id, mode),
         )
         await db.execute(
             "INSERT INTO ready_checks (match_id, player1_id, player2_id) VALUES (?, ?, ?)",
@@ -193,11 +277,12 @@ async def complete_match(match_id: int, winner_id: int):
 async def cancel_match(match_id: int):
     async with aiosqlite.connect(DB_PATH) as db:
         await db.execute(
-            "UPDATE matches SET status = 'cancelled' WHERE match_id = ?",
-            (match_id,),
+            "UPDATE matches SET status = 'cancelled' WHERE match_id = ?", (match_id,)
         )
         await db.commit()
 
+
+# ── Ready checks ──────────────────────────────────────────────────────────────
 
 async def get_ready_check(match_id: int) -> dict | None:
     async with aiosqlite.connect(DB_PATH) as db:
@@ -214,30 +299,14 @@ async def set_ready(match_id: int, player_id: int):
         rc = await get_ready_check(match_id)
         if not rc:
             return
-        if rc["player1_id"] == player_id:
-            await db.execute(
-                "UPDATE ready_checks SET p1_ready = 1 WHERE match_id = ?", (match_id,)
-            )
-        else:
-            await db.execute(
-                "UPDATE ready_checks SET p2_ready = 1 WHERE match_id = ?", (match_id,)
-            )
+        col = "p1_ready" if rc["player1_id"] == player_id else "p2_ready"
+        await db.execute(
+            f"UPDATE ready_checks SET {col} = 1 WHERE match_id = ?", (match_id,)
+        )
         await db.commit()
 
 
-async def get_leaderboard(limit: int = 10) -> list[dict]:
-    async with aiosqlite.connect(DB_PATH) as db:
-        db.row_factory = aiosqlite.Row
-        async with db.execute(
-            """SELECT discord_id, username, elo, wins, losses
-               FROM players
-               WHERE wins + losses > 0
-               ORDER BY elo DESC LIMIT ?""",
-            (limit,),
-        ) as cur:
-            rows = await cur.fetchall()
-            return [dict(r) for r in rows]
-
+# ── Server config ─────────────────────────────────────────────────────────────
 
 async def get_server_config(server_id: int) -> dict:
     async with aiosqlite.connect(DB_PATH) as db:
@@ -249,8 +318,7 @@ async def get_server_config(server_id: int) -> dict:
         async with db.execute(
             "SELECT * FROM server_config WHERE server_id = ?", (server_id,)
         ) as cur:
-            row = await cur.fetchone()
-            return dict(row)
+            return dict(await cur.fetchone())
 
 
 async def update_server_config(server_id: int, **kwargs):
@@ -291,18 +359,150 @@ async def upsert_server_player(discord_id: int, server_id: int, **kwargs):
         await db.commit()
 
 
-async def set_player_elo_direct(discord_id: int, elo: int):
+# ── Premium ───────────────────────────────────────────────────────────────────
+
+async def is_premium(discord_id: int) -> bool:
+    async with aiosqlite.connect(DB_PATH) as db:
+        async with db.execute(
+            "SELECT 1 FROM premium_users WHERE discord_id = ?", (discord_id,)
+        ) as cur:
+            return await cur.fetchone() is not None
+
+
+async def grant_premium(discord_id: int, license_key: str, granted_by: int | None = None):
     async with aiosqlite.connect(DB_PATH) as db:
         await db.execute(
-            "UPDATE players SET elo = ? WHERE discord_id = ?", (elo, discord_id)
+            "INSERT OR REPLACE INTO premium_users (discord_id, license_key, granted_by) VALUES (?, ?, ?)",
+            (discord_id, license_key, granted_by),
         )
         await db.commit()
 
 
-async def reset_player_stats(discord_id: int):
+async def revoke_premium(discord_id: int):
     async with aiosqlite.connect(DB_PATH) as db:
         await db.execute(
-            "UPDATE players SET elo = ?, wins = 0, losses = 0 WHERE discord_id = ?",
-            (INITIAL_ELO, discord_id),
+            "DELETE FROM premium_users WHERE discord_id = ?", (discord_id,)
+        )
+        await db.commit()
+
+
+async def get_premium_info(discord_id: int) -> dict | None:
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        async with db.execute(
+            "SELECT * FROM premium_users WHERE discord_id = ?", (discord_id,)
+        ) as cur:
+            row = await cur.fetchone()
+            return dict(row) if row else None
+
+
+# ── Seasons ───────────────────────────────────────────────────────────────────
+
+async def get_active_season() -> dict | None:
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        async with db.execute(
+            "SELECT * FROM seasons WHERE active = 1 LIMIT 1"
+        ) as cur:
+            row = await cur.fetchone()
+            return dict(row) if row else None
+
+
+async def start_season(name: str) -> int:
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute("UPDATE seasons SET active = 0")
+        cur = await db.execute(
+            "INSERT INTO seasons (name, active) VALUES (?, 1)", (name,)
+        )
+        await db.commit()
+        return cur.lastrowid
+
+
+async def end_season(season_id: int, soft_reset: bool = True):
+    from config import INITIAL_ELO
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        async with db.execute(
+            "SELECT * FROM players WHERE wins + losses > 0"
+        ) as cur:
+            players = [dict(r) for r in await cur.fetchall()]
+
+        from config import get_rank
+        for p in players:
+            await db.execute(
+                """INSERT OR REPLACE INTO season_history
+                   (discord_id, season_id, final_elo, wins, losses, rank_title)
+                   VALUES (?, ?, ?, ?, ?, ?)""",
+                (p["discord_id"], season_id, p["elo"], p["wins"], p["losses"], get_rank(p["elo"])),
+            )
+            if soft_reset:
+                new_elo = INITIAL_ELO + round((p["elo"] - INITIAL_ELO) * 0.5)
+                await db.execute(
+                    "UPDATE players SET elo = ?, wins = 0, losses = 0 WHERE discord_id = ?",
+                    (max(new_elo, 100), p["discord_id"]),
+                )
+
+        await db.execute(
+            "UPDATE seasons SET active = 0, ended_at = CURRENT_TIMESTAMP WHERE season_id = ?",
+            (season_id,),
+        )
+        await db.commit()
+
+
+async def get_season_history(discord_id: int) -> list[dict]:
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        async with db.execute(
+            """SELECT sh.*, s.name as season_name
+               FROM season_history sh JOIN seasons s ON sh.season_id = s.season_id
+               WHERE sh.discord_id = ? ORDER BY sh.season_id DESC""",
+            (discord_id,),
+        ) as cur:
+            return [dict(r) for r in await cur.fetchall()]
+
+
+async def get_all_seasons() -> list[dict]:
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        async with db.execute(
+            "SELECT * FROM seasons ORDER BY season_id DESC"
+        ) as cur:
+            return [dict(r) for r in await cur.fetchall()]
+
+
+# ── Queue modes ───────────────────────────────────────────────────────────────
+
+async def get_queue_modes() -> list[dict]:
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        async with db.execute(
+            "SELECT * FROM queue_modes WHERE enabled = 1 ORDER BY mode_id"
+        ) as cur:
+            return [dict(r) for r in await cur.fetchall()]
+
+
+async def get_queue_mode(mode_id: str) -> dict | None:
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        async with db.execute(
+            "SELECT * FROM queue_modes WHERE mode_id = ? AND enabled = 1", (mode_id,)
+        ) as cur:
+            row = await cur.fetchone()
+            return dict(row) if row else None
+
+
+async def create_queue_mode(mode_id: str, display_name: str, description: str = ""):
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute(
+            "INSERT OR REPLACE INTO queue_modes (mode_id, display_name, description, enabled) VALUES (?, ?, ?, 1)",
+            (mode_id, display_name, description),
+        )
+        await db.commit()
+
+
+async def delete_queue_mode(mode_id: str):
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute(
+            "UPDATE queue_modes SET enabled = 0 WHERE mode_id = ?", (mode_id,)
         )
         await db.commit()

@@ -132,6 +132,55 @@ class AdminGroup(app_commands.Group, name="admin", description="Admin-only playe
             await db.update_server_config(interaction.guild_id, **kwargs)
         await interaction.response.send_message("Server config updated.", ephemeral=True)
 
+    # ── Premium management ────────────────────────────────────────────────────
+
+    @app_commands.command(name="grantpremium", description="Manually grant premium to a user")
+    @app_commands.describe(user="User to grant premium to")
+    async def grant_premium(self, interaction: discord.Interaction, user: discord.User):
+        if not self._check(interaction):
+            await interaction.response.send_message("Not authorised.", ephemeral=True)
+            return
+        await db.get_or_create_player(user.id, str(user))
+        await db.grant_premium(user.id, "admin-granted", granted_by=interaction.user.id)
+        await interaction.response.send_message(f"Granted premium to {user}.", ephemeral=True)
+        try:
+            await user.send("⭐ You have been granted **Syntrix Premium** by an admin! Use `/premium` to see your perks.")
+        except Exception:
+            pass
+
+    @app_commands.command(name="revokepremium", description="Revoke premium from a user")
+    @app_commands.describe(user="User to revoke premium from")
+    async def revoke_premium(self, interaction: discord.Interaction, user: discord.User):
+        if not self._check(interaction):
+            await interaction.response.send_message("Not authorised.", ephemeral=True)
+            return
+        await db.revoke_premium(user.id)
+        await interaction.response.send_message(f"Revoked premium from {user}.", ephemeral=True)
+
+    # ── Queue mode management ─────────────────────────────────────────────────
+
+    @app_commands.command(name="addmode", description="Add a new queue mode")
+    @app_commands.describe(mode_id="Short ID (e.g. 2v2)", display_name="Display name", description="Description")
+    async def add_mode(self, interaction: discord.Interaction, mode_id: str, display_name: str, description: str = ""):
+        if not self._check(interaction):
+            await interaction.response.send_message("Not authorised.", ephemeral=True)
+            return
+        mode_id = mode_id.lower().replace(" ", "_")
+        await db.create_queue_mode(mode_id, display_name, description)
+        await interaction.response.send_message(f"Added queue mode `{mode_id}` ({display_name}).", ephemeral=True)
+
+    @app_commands.command(name="removemode", description="Remove a queue mode")
+    @app_commands.describe(mode_id="Mode ID to remove")
+    async def remove_mode(self, interaction: discord.Interaction, mode_id: str):
+        if not self._check(interaction):
+            await interaction.response.send_message("Not authorised.", ephemeral=True)
+            return
+        if mode_id in ("ranked", "casual"):
+            await interaction.response.send_message("Cannot remove built-in modes.", ephemeral=True)
+            return
+        await db.delete_queue_mode(mode_id)
+        await interaction.response.send_message(f"Removed queue mode `{mode_id}`.", ephemeral=True)
+
 
 class AdminCog(commands.Cog):
     def __init__(self, bot):
