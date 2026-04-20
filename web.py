@@ -1,13 +1,24 @@
 import os
+import secrets
+import httpx
+from itsdangerous import URLSafeTimedSerializer, BadSignature, SignatureExpired
 import aiosqlite
-from fastapi import FastAPI, Request, Form, Response
+from fastapi import FastAPI, Request, Response
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
-from config import BOT_INVITE_URL, DASHBOARD_SECRET, get_rank
+from config import (
+    BOT_INVITE_URL, SESSION_SECRET, ADMIN_USER_ID,
+    DISCORD_CLIENT_ID, DISCORD_CLIENT_SECRET, DISCORD_REDIRECT_URI,
+    get_rank,
+)
 
 DB_PATH = "matchmaking.db"
 app = FastAPI()
 
-AUTH_COOKIE = "sx_dash"
+AUTH_COOKIE = "sx_sess"
+STATE_COOKIE = "sx_state"
+SESSION_MAX_AGE = 60 * 60 * 24  # 24 hours
+
+_signer = URLSafeTimedSerializer(SESSION_SECRET)
 
 
 # ── Helpers ────────────────────────────────────────────────────────────────────
@@ -33,9 +44,14 @@ async def execute(sql: str, params: tuple = ()):
 
 
 def is_authed(request: Request) -> bool:
-    if not DASHBOARD_SECRET:
+    token = request.cookies.get(AUTH_COOKIE)
+    if not token:
         return False
-    return request.cookies.get(AUTH_COOKIE) == DASHBOARD_SECRET
+    try:
+        data = _signer.loads(token, max_age=SESSION_MAX_AGE)
+        return str(data.get("id")) == str(ADMIN_USER_ID)
+    except (BadSignature, SignatureExpired):
+        return False
 
 
 # ── Public API ─────────────────────────────────────────────────────────────────
@@ -280,13 +296,69 @@ async def dash_delete_mode(mode_id: str, request: Request):
 
 # ── Auth ───────────────────────────────────────────────────────────────────────
 
-@app.post("/dashboard/login")
-async def dashboard_login(response: Response, secret: str = Form(...)):
-    if DASHBOARD_SECRET and secret == DASHBOARD_SECRET:
-        resp = RedirectResponse("/dashboard", status_code=302)
-        resp.set_cookie(AUTH_COOKIE, DASHBOARD_SECRET, httponly=True, samesite="lax")
-        return resp
-    return RedirectResponse("/dashboard/login?error=1", status_code=302)
+@app.get("/dashboard/login", response_class=HTMLResponse)
+async def dashboard_login_page(request: Request, error: str = ""):
+    if is_authed(request):
+        return RedirectResponse("/dashboard", status_code=302)
+    return HTMLResponse(LOGIN_HTML.replace("{{ERROR}}", error))
+
+
+@app.get("/dashboard/oauth")
+async def dashboard_oauth(request: Request):
+    state = secrets.token_urlsafe(16)
+    resp = RedirectResponse(
+        f"https://discord.com/oauth2/authorize"
+        f"?client_id={DISCORD_CLIENT_ID}"
+        f"&redirect_uri={DISCORD_REDIRECT_URI}"
+        f"&response_type=code"
+        f"&scope=identify"
+        f"&state={state}",
+        status_code=302,
+    )
+    resp.set_cookie(STATE_COOKIE, state, httponly=True, samesite="lax", max_age=300)
+    return resp
+
+
+@app.get("/dashboard/callback")
+async def dashboard_callback(request: Request, code: str = "", state: str = "", error: str = ""):
+    if error:
+        return RedirectResponse(f"/dashboard/login?error={error}", status_code=302)
+
+    stored_state = request.cookies.get(STATE_COOKIE)
+    if not state or state != stored_state:
+        return RedirectResponse("/dashboard/login?error=Invalid+state", status_code=302)
+
+    async with httpx.AsyncClient() as client:
+        token_resp = await client.post(
+            "https://discord.com/api/oauth2/token",
+            data={
+                "client_id": DISCORD_CLIENT_ID,
+                "client_secret": DISCORD_CLIENT_SECRET,
+                "grant_type": "authorization_code",
+                "code": code,
+                "redirect_uri": DISCORD_REDIRECT_URI,
+            },
+            headers={"Content-Type": "application/x-www-form-urlencoded"},
+        )
+        if token_resp.status_code != 200:
+            return RedirectResponse("/dashboard/login?error=Token+exchange+failed", status_code=302)
+
+        access_token = token_resp.json().get("access_token")
+        user_resp = await client.get(
+            "https://discord.com/api/users/@me",
+            headers={"Authorization": f"Bearer {access_token}"},
+        )
+        user = user_resp.json()
+
+    user_id = int(user.get("id", 0))
+    if user_id != ADMIN_USER_ID:
+        return RedirectResponse("/dashboard/login?error=Access+denied", status_code=302)
+
+    token = _signer.dumps({"id": user_id, "username": user.get("username", "")})
+    resp = RedirectResponse("/dashboard", status_code=302)
+    resp.set_cookie(AUTH_COOKIE, token, httponly=True, samesite="lax", max_age=SESSION_MAX_AGE)
+    resp.delete_cookie(STATE_COOKIE)
+    return resp
 
 
 @app.get("/dashboard/logout")
@@ -294,13 +366,6 @@ async def dashboard_logout():
     resp = RedirectResponse("/dashboard/login", status_code=302)
     resp.delete_cookie(AUTH_COOKIE)
     return resp
-
-
-@app.get("/dashboard/login", response_class=HTMLResponse)
-async def dashboard_login_page(request: Request, error: int = 0):
-    msg = "Invalid password. Try again." if error else ""
-    html = LOGIN_HTML.replace("{{ERROR}}", msg).replace("{{ERROR_SHOW}}", "block" if error else "none")
-    return HTMLResponse(html)
 
 
 @app.get("/dashboard", response_class=HTMLResponse)
@@ -546,30 +611,34 @@ body{font-family:Inter,sans-serif;background:#07070f;color:#f1f5f9;min-height:10
 .o2{width:400px;height:400px;background:#1e1b4b;bottom:-100px;right:-100px}
 .box{position:relative;z-index:1;background:#0e0e1c;border:1px solid rgba(139,92,246,.2);border-radius:20px;padding:48px 40px;width:100%;max-width:400px;text-align:center}
 .logo{font-size:24px;font-weight:900;letter-spacing:3px;background:linear-gradient(135deg,#a855f7,#7c3aed);-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:8px}
-.sub{font-size:14px;color:#64748b;margin-bottom:36px}
-label{display:block;text-align:left;font-size:13px;font-weight:500;color:#94a3b8;margin-bottom:8px}
-input[type=password]{width:100%;background:#13131f;border:1px solid rgba(139,92,246,.2);border-radius:10px;padding:12px 16px;font-size:14px;color:#f1f5f9;font-family:inherit;outline:none;transition:border-color .2s;margin-bottom:20px}
-input[type=password]:focus{border-color:rgba(139,92,246,.5)}
-button{width:100%;background:linear-gradient(135deg,#7c3aed,#a855f7);color:#fff;border:none;border-radius:10px;padding:13px;font-size:15px;font-weight:600;cursor:pointer;font-family:inherit;transition:all .2s;box-shadow:0 0 20px rgba(124,58,237,.3)}
-button:hover{transform:translateY(-1px);box-shadow:0 0 30px rgba(124,58,237,.4)}
-.err{background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.25);border-radius:8px;padding:10px 14px;font-size:13px;color:#f87171;margin-bottom:16px}
+.sub{font-size:14px;color:#64748b;margin-bottom:8px}
+.notice{font-size:12px;color:#475569;margin-bottom:32px;line-height:1.5}
+.btn-discord{display:flex;align-items:center;justify-content:center;gap:12px;width:100%;background:#5865f2;color:#fff;border:none;border-radius:12px;padding:14px;font-size:15px;font-weight:600;cursor:pointer;font-family:inherit;transition:all .2s;text-decoration:none;box-shadow:0 0 24px rgba(88,101,242,.35)}
+.btn-discord:hover{background:#4752c4;transform:translateY(-1px);box-shadow:0 0 36px rgba(88,101,242,.5)}
+.discord-icon{width:22px;height:22px;fill:#fff;flex-shrink:0}
+.err{background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.25);border-radius:8px;padding:10px 14px;font-size:13px;color:#f87171;margin-bottom:20px}
+.lock{font-size:36px;margin-bottom:16px;opacity:.6}
 </style>
 </head>
 <body>
 <div class="orb o1"></div><div class="orb o2"></div>
 <div class="box">
+  <div class="lock">🛡️</div>
   <div class="logo">SYNTRIX</div>
   <div class="sub">Admin Dashboard</div>
-  <div class="err" id="err" style="display:{{ERROR_SHOW}}">{{ERROR}}</div>
-  <form method="POST" action="/dashboard/login">
-    <label>Dashboard Password</label>
-    <input type="password" name="secret" placeholder="Enter your secret key" autofocus/>
-    <button type="submit">Sign In →</button>
-  </form>
+  <div class="notice">Only the bot owner can access this dashboard.<br>Sign in with your Discord account to continue.</div>
+  <div class="err" id="err" style="display:none">{{ERROR}}</div>
+  <a href="/dashboard/oauth" class="btn-discord">
+    <svg class="discord-icon" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+      <path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 0 0 .031.057 19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028 14.09 14.09 0 0 0 1.226-1.994.076.076 0 0 0-.041-.106 13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128 10.2 10.2 0 0 0 .372-.292.074.074 0 0 1 .077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127 12.299 12.299 0 0 1-1.873.892.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.03z"/>
+    </svg>
+    Login with Discord
+  </a>
 </div>
 <script>
 const err=document.getElementById('err');
-if(err.textContent.trim()==='')err.style.display='none';
+const msg='{{ERROR}}';
+if(msg&&msg.trim()){err.textContent=msg;err.style.display='block'}
 </script>
 </body></html>"""
 

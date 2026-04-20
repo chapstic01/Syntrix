@@ -7,7 +7,10 @@ DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")
 ADMIN_USER_ID = int(os.getenv("ADMIN_USER_ID", "0"))
 GUMROAD_PRODUCT_ID = os.getenv("GUMROAD_PRODUCT_ID", "")
 BOT_INVITE_URL = os.getenv("BOT_INVITE_URL", "#")
-DASHBOARD_SECRET = os.getenv("DASHBOARD_SECRET", "")
+SESSION_SECRET = os.getenv("SESSION_SECRET", "change-me-in-production")
+DISCORD_CLIENT_ID = os.getenv("DISCORD_CLIENT_ID", "")
+DISCORD_CLIENT_SECRET = os.getenv("DISCORD_CLIENT_SECRET", "")
+DISCORD_REDIRECT_URI = os.getenv("DISCORD_REDIRECT_URI", "http://localhost:8000/dashboard/callback")
 
 INITIAL_ELO = 1000
 ELO_K_FACTOR = 32
