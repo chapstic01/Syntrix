@@ -53,11 +53,15 @@ class QueueCog(commands.Cog):
 
         rank = get_rank(player["elo"])
         color = discord.Color.purple() if premium else discord.Color.green()
+        mode_name = mode_data["display_name"]
+        prefix = "⭐ " if premium else ""
+        premium_line = "**Premium:** Wider match range active ✨\n" if premium else ""
+        player_elo = player["elo"]
         embed = discord.Embed(
-            title=f"{'⭐ ' if premium else ''}Joined {mode_data['display_name']} Queue",
+            title=f"{prefix}Joined {mode_name} Queue",
             description=(
-                f"**ELO:** {player['elo']} · **Rank:** {rank}\n"
-                f"{'**Premium:** Wider match range active ✨\n' if premium else ''}"
+                f"**ELO:** {player_elo} · **Rank:** {rank}\n"
+                f"{premium_line}"
                 f"Use `/leave` to exit at any time."
             ),
             color=color,
