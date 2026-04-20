@@ -53,10 +53,38 @@ class MatchmakingBot(commands.Bot):
                 name="the queue | /help",
             )
         )
+        await db.sync_guilds([(g.id, g.name, g.member_count) for g in self.guilds])
+        await self._notify_admin_startup()
+
+    async def _notify_admin_startup(self):
+        from config import ADMIN_USER_ID
+        if not ADMIN_USER_ID:
+            return
+        try:
+            admin = await self.fetch_user(ADMIN_USER_ID)
+            guilds = self.guilds
+            lines = [f"• **{g.name}** — {g.member_count} members (ID: `{g.id}`)" for g in guilds[:20]]
+            if len(guilds) > 20:
+                lines.append(f"…and {len(guilds) - 20} more")
+            embed = discord.Embed(
+                title="✅ Syntrix is Online",
+                description="\n".join(lines) if lines else "Not in any servers yet.",
+                color=discord.Color.green(),
+            )
+            embed.add_field(name="Total Servers", value=str(len(guilds)), inline=True)
+            embed.add_field(name="Bot User", value=str(self.user), inline=True)
+            await admin.send(embed=embed)
+        except Exception as e:
+            print(f"[startup] Could not DM admin: {e}")
 
     async def on_guild_join(self, guild: discord.Guild):
         await db.get_server_config(guild.id)
+        await db.sync_guilds([(guild.id, guild.name, guild.member_count)])
         print(f"[bot] Joined guild: {guild.name} ({guild.id})")
+
+    async def on_guild_remove(self, guild: discord.Guild):
+        await db.remove_guild(guild.id)
+        print(f"[bot] Left guild: {guild.name} ({guild.id})")
 
         system_channel = guild.system_channel
         if system_channel and system_channel.permissions_for(guild.me).send_messages:

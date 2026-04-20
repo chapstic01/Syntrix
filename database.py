@@ -92,6 +92,13 @@ async def init_db():
                 description  TEXT DEFAULT '',
                 enabled      INTEGER DEFAULT 1
             );
+
+            CREATE TABLE IF NOT EXISTS guilds (
+                guild_id     INTEGER PRIMARY KEY,
+                name         TEXT NOT NULL,
+                member_count INTEGER DEFAULT 0,
+                last_seen    TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
         """)
 
         for mode_id, display_name, description in DEFAULT_QUEUE_MODES:
@@ -471,6 +478,56 @@ async def get_all_seasons() -> list[dict]:
 
 
 # ── Queue modes ───────────────────────────────────────────────────────────────
+
+async def sync_guilds(guilds: list[tuple]):
+    async with aiosqlite.connect(DB_PATH) as db:
+        for guild_id, name, member_count in guilds:
+            await db.execute(
+                """INSERT OR REPLACE INTO guilds (guild_id, name, member_count, last_seen)
+                   VALUES (?, ?, ?, CURRENT_TIMESTAMP)""",
+                (guild_id, name, member_count),
+            )
+        await db.commit()
+
+
+async def remove_guild(guild_id: int):
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute("DELETE FROM guilds WHERE guild_id = ?", (guild_id,))
+        await db.commit()
+
+
+async def get_guilds() -> list[dict]:
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        async with db.execute("SELECT * FROM guilds ORDER BY name") as cur:
+            return [dict(r) for r in await cur.fetchall()]
+
+
+async def get_all_players(limit: int = 50, offset: int = 0, search: str = "") -> list[dict]:
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        async with db.execute(
+            """SELECT p.discord_id, p.username, p.elo, p.wins, p.losses,
+                      CASE WHEN pr.discord_id IS NOT NULL THEN 1 ELSE 0 END as is_premium
+               FROM players p
+               LEFT JOIN premium_users pr ON p.discord_id = pr.discord_id
+               WHERE p.username LIKE ?
+               ORDER BY p.elo DESC LIMIT ? OFFSET ?""",
+            (f"%{search}%", limit, offset),
+        ) as cur:
+            return [dict(r) for r in await cur.fetchall()]
+
+
+async def get_premium_users() -> list[dict]:
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        async with db.execute(
+            """SELECT pr.*, p.username, p.elo
+               FROM premium_users pr JOIN players p ON pr.discord_id = p.discord_id
+               ORDER BY pr.activated_at DESC"""
+        ) as cur:
+            return [dict(r) for r in await cur.fetchall()]
+
 
 async def get_queue_modes() -> list[dict]:
     async with aiosqlite.connect(DB_PATH) as db:
