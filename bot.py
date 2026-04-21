@@ -1,9 +1,11 @@
+import os
 import asyncio
 import discord
 from discord.ext import commands
 from config import DISCORD_TOKEN
 import database as db
 import matchmaking
+from web import app as web_app
 from cogs.queue_cog import QueueCog
 from cogs.match_cog import MatchCog
 from cogs.profile_cog import ProfileCog
@@ -49,9 +51,15 @@ class MatchmakingBot(commands.Bot):
 
         await self.tree.sync()
         asyncio.create_task(matchmaking.run_matchmaking_loop(self))
-        print("[bot] Commands synced and matchmaking loop started.")
+        import uvicorn
+        port = int(os.getenv("PORT", 8000))
+        config = uvicorn.Config(web_app, host="0.0.0.0", port=port, log_level="warning")
+        server = uvicorn.Server(config)
+        asyncio.create_task(server.serve())
+        print(f"[bot] Commands synced, matchmaking loop started, web server on :{port}.")
 
     async def on_ready(self):
+        web_app.state.bot = self
         print(f"[bot] Logged in as {self.user} (ID: {self.user.id})")
         await self.change_presence(
             activity=discord.Activity(

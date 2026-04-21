@@ -43,15 +43,39 @@ async def execute(sql: str, params: tuple = ()):
         return False
 
 
-def is_authed(request: Request) -> bool:
+def get_session(request: Request) -> dict | None:
     token = request.cookies.get(AUTH_COOKIE)
     if not token:
-        return False
+        return None
     try:
-        data = _signer.loads(token, max_age=SESSION_MAX_AGE)
-        return str(data.get("id")) == str(ADMIN_USER_ID)
+        return _signer.loads(token, max_age=SESSION_MAX_AGE)
     except (BadSignature, SignatureExpired):
-        return False
+        return None
+
+def is_logged_in(request: Request) -> bool:
+    return get_session(request) is not None
+
+def is_authed(request: Request) -> bool:
+    """Owner-only check — kept for all global admin endpoints."""
+    sess = get_session(request)
+    return sess is not None and str(sess.get("id")) == str(ADMIN_USER_ID)
+
+def is_owner(request: Request) -> bool:
+    return is_authed(request)
+
+def get_allowed_guilds(request: Request) -> list[int] | None:
+    sess = get_session(request)
+    if not sess:
+        return []
+    if str(sess.get("id")) == str(ADMIN_USER_ID):
+        return None  # None = owner, all guilds allowed
+    return [int(g) for g in sess.get("guild_ids", [])]
+
+def can_access_guild(request: Request, guild_id: int) -> bool:
+    allowed = get_allowed_guilds(request)
+    if allowed is None:
+        return True
+    return guild_id in allowed
 
 
 # ── Public API ─────────────────────────────────────────────────────────────────
@@ -128,7 +152,7 @@ async def dash_servers(request: Request):
 
 @app.post("/api/dash/server/{server_id}/config")
 async def dash_server_config(server_id: int, request: Request):
-    if not is_authed(request):
+    if not can_access_guild(request, server_id):
         return JSONResponse({"error": "unauthorized"}, status_code=401)
     body = await request.json()
     async with aiosqlite.connect(DB_PATH) as db:
@@ -305,7 +329,7 @@ async def api_games():
 
 @app.get("/api/dash/server/{server_id}/settings")
 async def dash_get_server_settings(server_id: int, request: Request):
-    if not is_authed(request):
+    if not can_access_guild(request, server_id):
         return JSONResponse({"error": "unauthorized"}, status_code=401)
     rows = await query("SELECT * FROM server_config WHERE server_id=?", (server_id,))
     return JSONResponse(rows[0] if rows else {})
@@ -313,7 +337,7 @@ async def dash_get_server_settings(server_id: int, request: Request):
 
 @app.post("/api/dash/server/{server_id}/settings")
 async def dash_update_server_settings(server_id: int, request: Request):
-    if not is_authed(request):
+    if not can_access_guild(request, server_id):
         return JSONResponse({"error": "unauthorized"}, status_code=401)
     body = await request.json()
     allowed = ("score_mode", "require_evidence", "rounds_per_match", "rematch_cooldown",
@@ -334,7 +358,7 @@ async def dash_update_server_settings(server_id: int, request: Request):
 
 @app.get("/api/dash/server/{server_id}/games")
 async def dash_server_games(server_id: int, request: Request):
-    if not is_authed(request):
+    if not can_access_guild(request, server_id):
         return JSONResponse({"error": "unauthorized"}, status_code=401)
     from config import GAMES
     rows = await query(
@@ -349,7 +373,7 @@ async def dash_server_games(server_id: int, request: Request):
 
 @app.post("/api/dash/server/{server_id}/games")
 async def dash_set_server_game(server_id: int, request: Request):
-    if not is_authed(request):
+    if not can_access_guild(request, server_id):
         return JSONResponse({"error": "unauthorized"}, status_code=401)
     from config import GAMES, MAX_GAMES_FREE, MAX_GAMES_PREMIUM
     body = await request.json()
@@ -377,7 +401,7 @@ async def dash_set_server_game(server_id: int, request: Request):
 
 @app.delete("/api/dash/server/{server_id}/games/{mode}")
 async def dash_delete_server_game(server_id: int, mode: str, request: Request):
-    if not is_authed(request):
+    if not can_access_guild(request, server_id):
         return JSONResponse({"error": "unauthorized"}, status_code=401)
     await execute(
         "DELETE FROM server_queue_games WHERE server_id=? AND queue_mode=?", (server_id, mode)
@@ -385,11 +409,128 @@ async def dash_delete_server_game(server_id: int, mode: str, request: Request):
     return JSONResponse({"ok": True})
 
 
+# ── Me + My Servers ────────────────────────────────────────────────────────────
+
+@app.get("/api/me")
+async def api_me(request: Request):
+    sess = get_session(request)
+    if not sess:
+        return JSONResponse({"error": "unauthorized"}, status_code=401)
+    return JSONResponse({
+        "id": str(sess.get("id")),
+        "username": sess.get("username"),
+        "is_owner": str(sess.get("id")) == str(ADMIN_USER_ID),
+        "guild_ids": sess.get("guild_ids", []),
+    })
+
+
+@app.get("/api/dash/myservers")
+async def dash_my_servers(request: Request):
+    if not is_logged_in(request):
+        return JSONResponse({"error": "unauthorized"}, status_code=401)
+    allowed = get_allowed_guilds(request)
+    rows = await query("SELECT * FROM guilds ORDER BY name")
+    configs = await query("SELECT * FROM server_config")
+    cfg_map = {c["server_id"]: c for c in configs}
+    if allowed is not None:
+        rows = [r for r in rows if r["guild_id"] in allowed]
+    for r in rows:
+        cfg = cfg_map.get(r["guild_id"], {})
+        r["queue_channel_id"] = cfg.get("queue_channel_id")
+        r["results_channel_id"] = cfg.get("results_channel_id")
+    return JSONResponse(rows)
+
+
+# ── Console (owner only) ────────────────────────────────────────────────────────
+
+@app.get("/api/console/guilds")
+async def console_guilds(request: Request):
+    if not is_owner(request):
+        return JSONResponse({"error": "unauthorized"}, status_code=401)
+    bot = getattr(request.app.state, "bot", None)
+    if not bot:
+        return JSONResponse({"error": "Bot not connected"}, status_code=503)
+    return JSONResponse([
+        {"id": str(g.id), "name": g.name, "member_count": g.member_count,
+         "icon": str(g.icon.url) if g.icon else None}
+        for g in sorted(bot.guilds, key=lambda g: g.name)
+    ])
+
+
+@app.get("/api/console/guild/{guild_id}/channels")
+async def console_channels(guild_id: int, request: Request):
+    if not is_owner(request):
+        return JSONResponse({"error": "unauthorized"}, status_code=401)
+    bot = getattr(request.app.state, "bot", None)
+    if not bot:
+        return JSONResponse({"error": "Bot not connected"}, status_code=503)
+    guild = bot.get_guild(guild_id)
+    if not guild:
+        return JSONResponse({"error": "Guild not found"}, status_code=404)
+    return JSONResponse([
+        {"id": str(ch.id), "name": ch.name,
+         "category": ch.category.name if ch.category else None}
+        for ch in sorted(guild.text_channels,
+                         key=lambda c: (c.category.position if c.category else 0, c.position))
+    ])
+
+
+@app.get("/api/console/guild/{guild_id}/channel/{channel_id}/messages")
+async def console_messages(guild_id: int, channel_id: int, request: Request, limit: int = 50, before: str = ""):
+    if not is_owner(request):
+        return JSONResponse({"error": "unauthorized"}, status_code=401)
+    bot = getattr(request.app.state, "bot", None)
+    if not bot:
+        return JSONResponse({"error": "Bot not connected"}, status_code=503)
+    guild = bot.get_guild(guild_id)
+    channel = guild.get_channel(channel_id) if guild else None
+    if not channel:
+        return JSONResponse({"error": "Channel not found"}, status_code=404)
+    import discord as _discord
+    kwargs: dict = {"limit": min(limit, 100)}
+    if before:
+        try:
+            kwargs["before"] = _discord.Object(id=int(before))
+        except ValueError:
+            pass
+    result = []
+    async for msg in channel.history(**kwargs):
+        result.append({
+            "id": str(msg.id),
+            "content": msg.content or "",
+            "author": {"id": str(msg.author.id), "name": msg.author.display_name,
+                       "avatar": str(msg.author.display_avatar.url), "bot": msg.author.bot},
+            "timestamp": msg.created_at.isoformat(),
+            "embeds": len(msg.embeds),
+            "attachments": [{"filename": a.filename, "url": a.url} for a in msg.attachments],
+        })
+    return JSONResponse(result)
+
+
+@app.post("/api/console/guild/{guild_id}/channel/{channel_id}/send")
+async def console_send(guild_id: int, channel_id: int, request: Request):
+    if not is_owner(request):
+        return JSONResponse({"error": "unauthorized"}, status_code=401)
+    bot = getattr(request.app.state, "bot", None)
+    if not bot:
+        return JSONResponse({"error": "Bot not connected"}, status_code=503)
+    body = await request.json()
+    content = body.get("content", "").strip()
+    if not content:
+        return JSONResponse({"error": "Content required"}, status_code=400)
+    guild = bot.get_guild(guild_id)
+    channel = guild.get_channel(channel_id) if guild else None
+    if not channel:
+        return JSONResponse({"error": "Channel not found"}, status_code=404)
+    await channel.send(content)
+    return JSONResponse({"ok": True})
+
+
 # ── Auth ───────────────────────────────────────────────────────────────────────
 
 @app.get("/dashboard/login", response_class=HTMLResponse)
 async def dashboard_login_page(request: Request, error: str = ""):
-    if is_authed(request):
+    if is_logged_in(request):
         return RedirectResponse("/dashboard", status_code=302)
     return HTMLResponse(LOGIN_HTML.replace("{{ERROR}}", error))
 
@@ -402,7 +543,7 @@ async def dashboard_oauth(request: Request):
         f"?client_id={DISCORD_CLIENT_ID}"
         f"&redirect_uri={DISCORD_REDIRECT_URI}"
         f"&response_type=code"
-        f"&scope=identify"
+        f"&scope=identify%20guilds"
         f"&state={state}",
         status_code=302,
     )
@@ -442,10 +583,26 @@ async def dashboard_callback(request: Request, code: str = "", state: str = "", 
         user = user_resp.json()
 
     user_id = int(user.get("id", 0))
-    if user_id != ADMIN_USER_ID:
-        return RedirectResponse("/dashboard/login?error=Access+denied", status_code=302)
+    guild_ids: list[int] = []
 
-    token = _signer.dumps({"id": user_id, "username": user.get("username", "")})
+    if user_id != ADMIN_USER_ID:
+        guilds_resp = await client.get(
+            "https://discord.com/api/users/@me/guilds",
+            headers={"Authorization": f"Bearer {access_token}"},
+        )
+        user_guilds = guilds_resp.json() if guilds_resp.status_code == 200 else []
+        bot = getattr(request.app.state, "bot", None)
+        bot_guild_ids = {g.id for g in bot.guilds} if bot else None
+        for g in user_guilds:
+            perms = int(g.get("permissions", "0"))
+            if perms & 0x20 or perms & 0x8:  # MANAGE_GUILD or ADMINISTRATOR
+                gid = int(g["id"])
+                if bot_guild_ids is None or gid in bot_guild_ids:
+                    guild_ids.append(gid)
+        if not guild_ids:
+            return RedirectResponse("/dashboard/login?error=No+managed+servers+with+Syntrix+found", status_code=302)
+
+    token = _signer.dumps({"id": user_id, "username": user.get("username", ""), "guild_ids": guild_ids})
     resp = RedirectResponse("/dashboard", status_code=302)
     resp.set_cookie(AUTH_COOKIE, token, httponly=True, samesite="lax", max_age=SESSION_MAX_AGE)
     resp.delete_cookie(STATE_COOKIE)
@@ -462,7 +619,7 @@ async def dashboard_logout():
 @app.get("/dashboard", response_class=HTMLResponse)
 @app.get("/dashboard/{path:path}", response_class=HTMLResponse)
 async def dashboard(request: Request, path: str = ""):
-    if not is_authed(request):
+    if not is_logged_in(request):
         return RedirectResponse("/dashboard/login", status_code=302)
     return HTMLResponse(DASHBOARD_HTML)
 
@@ -1022,13 +1179,15 @@ code.pill{background:rgba(124,58,237,.12);color:#c084fc;padding:2px 7px;border-r
 
 <!-- Tab bar -->
 <div class="tabbar">
-  <button class="tb active" data-tab="overview" onclick="showTab('overview',this)"><span class="tb-ico">🏠</span>Overview</button>
-  <button class="tb" data-tab="servers" onclick="showTab('servers',this)"><span class="tb-ico">🖥️</span>Servers</button>
-  <button class="tb" data-tab="players" onclick="showTab('players',this)"><span class="tb-ico">👥</span>Players</button>
-  <button class="tb" data-tab="premium" onclick="showTab('premium',this)"><span class="tb-ico">⭐</span>Premium</button>
-  <button class="tb" data-tab="seasons" onclick="showTab('seasons',this)"><span class="tb-ico">🏆</span>Seasons</button>
-  <button class="tb" data-tab="modes" onclick="showTab('modes',this)"><span class="tb-ico">🎮</span>Queue Modes</button>
-  <button class="tb" data-tab="games" onclick="showTab('games',this)"><span class="tb-ico">🗺️</span>Games</button>
+  <button class="tb active" id="tab-overview" data-tab="overview" onclick="showTab('overview',this)"><span class="tb-ico">🏠</span>Overview</button>
+  <button class="tb" id="tab-servers" data-tab="servers" onclick="showTab('servers',this)"><span class="tb-ico">🖥️</span>Servers</button>
+  <button class="tb" id="tab-players" data-tab="players" onclick="showTab('players',this)"><span class="tb-ico">👥</span>Players</button>
+  <button class="tb" id="tab-premium" data-tab="premium" onclick="showTab('premium',this)"><span class="tb-ico">⭐</span>Premium</button>
+  <button class="tb" id="tab-seasons" data-tab="seasons" onclick="showTab('seasons',this)"><span class="tb-ico">🏆</span>Seasons</button>
+  <button class="tb" id="tab-modes" data-tab="modes" onclick="showTab('modes',this)"><span class="tb-ico">🎮</span>Queue Modes</button>
+  <button class="tb" id="tab-games" data-tab="games" onclick="showTab('games',this)"><span class="tb-ico">🗺️</span>Games</button>
+  <button class="tb" id="tab-myservers" data-tab="myservers" onclick="showTab('myservers',this)" style="display:none"><span class="tb-ico">🖥️</span>My Servers</button>
+  <button class="tb" id="tab-console" data-tab="console" onclick="showTab('console',this)" style="display:none"><span class="tb-ico">⌨️</span>Console</button>
 </div>
 
 <div class="main">
@@ -1162,6 +1321,93 @@ code.pill{background:rgba(124,58,237,.12);color:#c084fc;padding:2px 7px;border-r
     </div>
   </div>
 
+  <!-- MY SERVERS (server admins + owner) -->
+  <div class="page" id="page-myservers">
+    <div class="page-head">
+      <div>
+        <h2 id="ms-title">My Servers</h2>
+        <div id="ms-breadcrumb" style="display:none;font-size:13px;color:var(--muted);margin-top:2px"></div>
+      </div>
+      <div style="display:flex;gap:8px">
+        <button id="ms-back-btn" class="btn btn-ghost btn-sm" onclick="backToMyServers()" style="display:none">← Back</button>
+        <button class="btn btn-ghost btn-sm" onclick="loadMyServers()">↻ Refresh</button>
+      </div>
+    </div>
+    <!-- Server grid -->
+    <div id="ms-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:16px"></div>
+    <!-- Per-server management -->
+    <div id="ms-mgmt" style="display:none">
+      <div style="display:flex;gap:2px;margin-bottom:20px;border-bottom:1px solid var(--border)">
+        <button class="tb active" data-sub="channels" onclick="showSubTab('channels',this)"><span class="tb-ico">📡</span>Channels</button>
+        <button class="tb" data-sub="mssettings" onclick="showSubTab('mssettings',this)"><span class="tb-ico">⚙️</span>Settings</button>
+        <button class="tb" data-sub="msgames" onclick="showSubTab('msgames',this)"><span class="tb-ico">🗺️</span>Games</button>
+      </div>
+      <!-- Channels -->
+      <div id="sub-channels" class="sub-page">
+        <div class="card"><div class="card-head"><div class="card-title">Channel Configuration</div></div>
+          <div class="inline-form">
+            <div class="fg"><label>Queue Channel ID</label><input id="sub-queue-ch" placeholder="Discord channel ID" style="width:210px"/></div>
+            <div class="fg"><label>Results Channel ID</label><input id="sub-results-ch" placeholder="Discord channel ID" style="width:210px"/></div>
+            <button class="btn btn-primary" onclick="saveSubChannels()">Save</button>
+          </div>
+        </div>
+      </div>
+      <!-- Settings -->
+      <div id="sub-mssettings" class="sub-page" style="display:none">
+        <div class="card"><div class="card-head"><div class="card-title">Match Settings</div></div>
+          <div class="card-body" style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+            <div class="fg"><label>Score Mode</label><select id="sub-score-mode" style="width:100%"><option value="0">Off (Win/Lose buttons)</option><option value="1">On (Enter final score)</option></select></div>
+            <div class="fg"><label>Require Evidence</label><select id="sub-req-ev" style="width:100%"><option value="0">No</option><option value="1">Yes (screenshot URL)</option></select></div>
+            <div class="fg"><label>Rounds per Match</label><input id="sub-rounds" type="number" min="1" placeholder="e.g. 3" style="width:100%"/></div>
+            <div class="fg"><label>Rematch Cooldown (min)</label><input id="sub-cooldown" type="number" min="0" placeholder="0 = off" style="width:100%"/></div>
+            <div class="fg"><label>Anonymous Queue</label><select id="sub-anon" style="width:100%"><option value="0">Off</option><option value="1">On</option></select></div>
+          </div>
+          <div style="padding:0 20px 16px"><button class="btn btn-primary" onclick="saveSubSettings()">Save Settings</button></div>
+        </div>
+      </div>
+      <!-- Games -->
+      <div id="sub-msgames" class="sub-page" style="display:none">
+        <div class="card" style="margin-bottom:16px"><div class="card-head"><div class="card-title">Assign Game to Mode</div></div>
+          <div class="inline-form">
+            <div class="fg"><label>Queue Mode</label><select id="sub-ga-mode" style="width:140px"></select></div>
+            <div class="fg"><label>Game</label><select id="sub-ga-game" style="width:200px"></select></div>
+            <button class="btn btn-primary" onclick="addSubGame()">Assign</button>
+          </div>
+        </div>
+        <div class="card"><div class="card-head"><div class="card-title">Current Assignments</div></div>
+          <table><thead><tr><th>Mode</th><th>Game</th><th>Maps</th><th></th></tr></thead>
+          <tbody id="sub-games-body"><tr><td colspan="4"><div class="empty">No games assigned.</div></td></tr></tbody></table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- CONSOLE (owner only) -->
+  <div class="page" id="page-console">
+    <div class="page-head">
+      <h2>Console</h2>
+      <select id="con-guild-sel" onchange="loadConChannels(this.value)" style="width:240px;background:var(--bg3);border:1px solid var(--border);border-radius:var(--r);padding:7px 11px;font-size:13px;color:var(--text);font-family:inherit;outline:none;transition:border-color .15s">
+        <option value="">Select server…</option>
+      </select>
+    </div>
+    <div style="display:flex;gap:12px;height:calc(100vh - 210px);min-height:420px">
+      <div style="width:196px;flex-shrink:0;background:var(--bg2);border:1px solid var(--border);border-radius:var(--r2);overflow-y:auto;padding:8px 0">
+        <div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.8px;padding:8px 14px 6px">Channels</div>
+        <div id="con-channel-list"><div style="padding:8px 14px;font-size:12px;color:var(--muted)">Select a server</div></div>
+      </div>
+      <div style="flex:1;display:flex;flex-direction:column;background:var(--bg2);border:1px solid var(--border);border-radius:var(--r2);overflow:hidden">
+        <div id="con-channel-label" style="padding:12px 16px;border-bottom:1px solid var(--border);font-size:13px;font-weight:600;color:var(--muted)"># select a channel</div>
+        <div id="con-messages" style="flex:1;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:10px">
+          <div class="empty">Select a server and channel to view messages.</div>
+        </div>
+        <div style="padding:12px 16px;border-top:1px solid var(--border);display:flex;gap:8px">
+          <input id="con-input" placeholder="Send as Syntrix…" style="flex:1" onkeydown="if(event.key==='Enter')consoleSend()"/>
+          <button class="btn btn-primary" onclick="consoleSend()">Send</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
 </div>
 
 <!-- Server Settings Modal -->
@@ -1241,6 +1487,15 @@ function showTab(name,el){
   if(name==='seasons')loadSeasons();
   if(name==='modes')loadModes();
   if(name==='games')initGamesTab();
+  if(name==='myservers')loadMyServers();
+  if(name==='console')initConsole();
+}
+function showSubTab(name,el){
+  document.querySelectorAll('.sub-page').forEach(p=>p.style.display='none');
+  document.querySelectorAll('[data-sub]').forEach(b=>b.classList.remove('active'));
+  const pg=document.getElementById('sub-'+name);
+  if(pg)pg.style.display='';
+  el.classList.add('active');
 }
 function closeModal(){document.querySelectorAll('.modal-overlay').forEach(m=>m.classList.remove('open'))}
 async function loadOverview(){
@@ -1461,8 +1716,184 @@ async function removeGame(serverId,mode){
   if(r.ok){toast('Assignment removed');loadGames(serverId)}else toast('Error',false);
 }
 
+// ── Init (role-based) ──
+let _me = null;
+let _msServerId = null;
+async function initDashboard(){
+  _me = await api('/api/me');
+  if(_me.error){window.location='/dashboard/login';return}
+  if(_me.is_owner){
+    document.getElementById('tab-console').style.display='';
+    loadOverview();
+  } else {
+    // Hide all owner-only tabs, show My Servers
+    ['overview','servers','players','premium','seasons','modes','games'].forEach(t=>{
+      const el=document.getElementById('tab-'+t);
+      if(el)el.style.display='none';
+    });
+    document.getElementById('tab-myservers').style.display='';
+    document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+    document.querySelectorAll('.tb').forEach(b=>b.classList.remove('active'));
+    document.getElementById('page-myservers').classList.add('active');
+    document.getElementById('tab-myservers').classList.add('active');
+    loadMyServers();
+  }
+}
+
+// ── My Servers ──
+async function loadMyServers(){
+  const grid=document.getElementById('ms-grid');
+  document.getElementById('ms-mgmt').style.display='none';
+  document.getElementById('ms-grid').style.display='grid';
+  document.getElementById('ms-back-btn').style.display='none';
+  document.getElementById('ms-breadcrumb').style.display='none';
+  document.getElementById('ms-title').textContent='My Servers';
+  grid.innerHTML='<div class="empty">Loading…</div>';
+  const d=await api('/api/dash/myservers');
+  if(!d||!d.length){grid.innerHTML='<div class="empty">No servers found. Make sure Syntrix is in your server and you have Manage Server permission.</div>';return}
+  grid.innerHTML=d.map(s=>{
+    const ini=s.name?s.name[0].toUpperCase():'?';
+    return`<div style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--r2);padding:20px;display:flex;flex-direction:column;gap:12px;transition:border-color .2s" onmouseenter="this.style.borderColor='rgba(124,58,237,.5)'" onmouseleave="this.style.borderColor='var(--border)'">
+      <div style="display:flex;align-items:center;gap:12px">
+        <div style="width:44px;height:44px;border-radius:50%;background:linear-gradient(135deg,#7c3aed,#a855f7);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:18px;flex-shrink:0">${esc(ini)}</div>
+        <div><div style="font-weight:700;font-size:14px">${esc(s.name)}</div><div style="font-size:11px;color:var(--muted)">${(s.member_count||0).toLocaleString()} members</div></div>
+      </div>
+      <button class="btn btn-primary btn-sm" onclick="openMyServer(${s.guild_id},'${esc(s.name)}')">Manage →</button>
+    </div>`;
+  }).join('');
+}
+async function openMyServer(id,name){
+  _msServerId=id;
+  document.getElementById('ms-grid').style.display='none';
+  document.getElementById('ms-mgmt').style.display='';
+  document.getElementById('ms-back-btn').style.display='';
+  document.getElementById('ms-title').textContent=name;
+  document.getElementById('ms-breadcrumb').textContent='My Servers / '+name;
+  document.getElementById('ms-breadcrumb').style.display='';
+  // Reset sub-tabs to channels
+  document.querySelectorAll('.sub-page').forEach(p=>p.style.display='none');
+  document.querySelectorAll('[data-sub]').forEach(b=>b.classList.remove('active'));
+  document.getElementById('sub-channels').style.display='';
+  document.querySelector('[data-sub="channels"]').classList.add('active');
+  // Load channel config
+  const d=await api(`/api/dash/server/${id}/settings`);
+  document.getElementById('sub-queue-ch').value=d.queue_channel_id||'';
+  document.getElementById('sub-results-ch').value=d.results_channel_id||'';
+  document.getElementById('sub-score-mode').value=d.score_mode?1:0;
+  document.getElementById('sub-req-ev').value=d.require_evidence?1:0;
+  document.getElementById('sub-rounds').value=d.rounds_per_match||'';
+  document.getElementById('sub-cooldown').value=d.rematch_cooldown!=null?d.rematch_cooldown:'';
+  document.getElementById('sub-anon').value=d.anonymous_queue?1:0;
+  // Load games selectors
+  const [games,modes]=await Promise.all([api('/api/games'),api('/api/dash/modes')]);
+  const glist=Array.isArray(games)?games:[];
+  const mlist=Array.isArray(modes)?modes.filter(m=>m.enabled):[];
+  document.getElementById('sub-ga-game').innerHTML=glist.map(g=>`<option value="${g.id}">${esc(g.name)}</option>`).join('');
+  document.getElementById('sub-ga-mode').innerHTML=mlist.map(m=>`<option value="${m.mode_id}">${esc(m.display_name)}</option>`).join('');
+  loadSubGames();
+}
+function backToMyServers(){_msServerId=null;loadMyServers()}
+async function saveSubChannels(){
+  const id=_msServerId;
+  const r=await api(`/api/dash/server/${id}/config`,{method:'POST',body:JSON.stringify({queue_channel_id:document.getElementById('sub-queue-ch').value||null,results_channel_id:document.getElementById('sub-results-ch').value||null})});
+  r.ok?toast('Channels saved'):toast('Error',false);
+}
+async function saveSubSettings(){
+  const id=_msServerId;
+  const r=await api(`/api/dash/server/${id}/settings`,{method:'POST',body:JSON.stringify({
+    score_mode:parseInt(document.getElementById('sub-score-mode').value),
+    require_evidence:parseInt(document.getElementById('sub-req-ev').value),
+    rounds_per_match:document.getElementById('sub-rounds').value||null,
+    rematch_cooldown:document.getElementById('sub-cooldown').value||null,
+    anonymous_queue:parseInt(document.getElementById('sub-anon').value),
+  })});
+  r.ok?toast('Settings saved'):toast('Error',false);
+}
+async function loadSubGames(){
+  const id=_msServerId;if(!id)return;
+  const d=await api(`/api/dash/server/${id}/games`);
+  const tb=document.getElementById('sub-games-body');
+  if(!d||!d.length){tb.innerHTML='<tr><td colspan="4"><div class="empty">No games assigned.</div></td></tr>';return}
+  tb.innerHTML=d.map(g=>`<tr><td><code class="pill">${esc(g.queue_mode)}</code></td><td style="font-weight:600">${esc(g.game_name)}</td><td style="color:var(--muted);font-size:12px">${g.map_count} maps</td><td><button class="btn btn-danger btn-xs" onclick="removeSubGame('${esc(g.queue_mode)}')">Remove</button></td></tr>`).join('');
+}
+async function addSubGame(){
+  const id=_msServerId;if(!id)return toast('No server selected',false);
+  const mode=document.getElementById('sub-ga-mode').value;
+  const game_id=document.getElementById('sub-ga-game').value;
+  const r=await api(`/api/dash/server/${id}/games`,{method:'POST',body:JSON.stringify({queue_mode:mode,game_id})});
+  r.ok?toast('Game assigned')&&loadSubGames():toast(r.error||'Error',false);
+  if(r.ok)loadSubGames();
+}
+async function removeSubGame(mode){
+  const id=_msServerId;if(!id)return;
+  if(!confirm(`Remove game for mode "${mode}"?`))return;
+  const r=await api(`/api/dash/server/${id}/games/${mode}`,{method:'DELETE'});
+  r.ok?toast('Removed')&&loadSubGames():toast('Error',false);
+  if(r.ok)loadSubGames();
+}
+
+// ── Console ──
+let _conGuildId=null,_conChannelId=null,_conChannelName='';
+async function initConsole(){
+  const d=await api('/api/console/guilds');
+  const sel=document.getElementById('con-guild-sel');
+  sel.innerHTML='<option value="">Select server…</option>'+(Array.isArray(d)?d.map(g=>`<option value="${g.id}">${esc(g.name)} (${g.member_count})</option>`).join(''):'');
+}
+async function loadConChannels(guildId){
+  _conGuildId=guildId;_conChannelId=null;
+  document.getElementById('con-channel-label').textContent='# select a channel';
+  document.getElementById('con-messages').innerHTML='<div class="empty">Select a channel.</div>';
+  const list=document.getElementById('con-channel-list');
+  if(!guildId){list.innerHTML='<div style="padding:8px 14px;font-size:12px;color:var(--muted)">Select a server</div>';return}
+  const d=await api(`/api/console/guild/${guildId}/channels`);
+  if(!d||!d.length){list.innerHTML='<div style="padding:8px 14px;font-size:12px;color:var(--muted)">No channels found</div>';return}
+  let cat='';
+  list.innerHTML=d.map(ch=>{
+    let html='';
+    if(ch.category&&ch.category!==cat){cat=ch.category;html+=`<div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.6px;padding:10px 14px 4px">${esc(cat)}</div>`}
+    html+=`<div onclick="loadConMessages('${ch.id}','${esc(ch.name)}')" style="padding:5px 14px;font-size:13px;color:var(--text2);cursor:pointer;border-radius:var(--r);margin:0 4px;transition:all .1s" id="conch-${ch.id}" onmouseenter="this.style.background='rgba(255,255,255,.06)'" onmouseleave="this.style.background=_conChannelId===this.dataset.id?'rgba(124,58,237,.15)':''" data-id="${ch.id}"><span style="color:var(--muted);margin-right:4px">#</span>${esc(ch.name)}</div>`;
+    return html;
+  }).join('');
+}
+async function loadConMessages(channelId,channelName){
+  _conChannelId=channelId;_conChannelName=channelName;
+  document.getElementById('con-channel-label').textContent='# '+channelName;
+  const feed=document.getElementById('con-messages');
+  feed.innerHTML='<div class="empty">Loading…</div>';
+  const d=await api(`/api/console/guild/${_conGuildId}/channel/${channelId}/messages?limit=50`);
+  if(!d||!Array.isArray(d)||!d.length){feed.innerHTML='<div class="empty">No messages.</div>';return}
+  const msgs=[...d].reverse();
+  feed.innerHTML=msgs.map(m=>{
+    const ini=m.author.name?m.author.name[0].toUpperCase():'?';
+    const t=new Date(m.timestamp+(m.timestamp.endsWith('Z')?'':'Z')).toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'});
+    const botBadge=m.author.bot?'<span style="font-size:9px;background:#5865f2;color:#fff;padding:1px 5px;border-radius:3px;font-weight:700;margin-left:4px">BOT</span>':'';
+    const aColor=m.author.bot?'#5865f2':'var(--accent)';
+    const att=m.attachments.length?`<div style="font-size:11px;color:var(--muted);margin-top:2px">📎 ${m.attachments.map(a=>`<a href="${esc(a.url)}" target="_blank" style="color:var(--accent2)">${esc(a.filename)}</a>`).join(', ')}</div>`:'';
+    const embeds=m.embeds?`<div style="font-size:11px;color:var(--muted);margin-top:2px">[${m.embeds} embed${m.embeds!==1?'s':''}]</div>`:'';
+    return`<div style="display:flex;gap:10px;padding:2px 0">
+      <div style="width:34px;height:34px;border-radius:50%;background:${aColor};display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;flex-shrink:0">${esc(ini)}</div>
+      <div style="flex:1;min-width:0">
+        <div style="display:flex;align-items:baseline;gap:6px">
+          <span style="font-weight:600;font-size:13px">${esc(m.author.name)}</span>${botBadge}
+          <span style="font-size:11px;color:var(--muted)">${t}</span>
+        </div>
+        <div style="font-size:13px;color:var(--text2);margin-top:1px;word-break:break-word;white-space:pre-wrap">${esc(m.content)||'<span style="color:var(--muted);font-style:italic">no text content</span>'}</div>
+        ${att}${m.embeds?embeds:''}
+      </div>
+    </div>`;
+  }).join('');
+  feed.scrollTop=feed.scrollHeight;
+}
+async function consoleSend(){
+  const content=document.getElementById('con-input').value.trim();
+  if(!content||!_conGuildId||!_conChannelId)return toast('Select a channel first',false);
+  const r=await api(`/api/console/guild/${_conGuildId}/channel/${_conChannelId}/send`,{method:'POST',body:JSON.stringify({content})});
+  if(r.ok){document.getElementById('con-input').value='';toast('Sent');loadConMessages(_conChannelId,_conChannelName)}
+  else toast(r.error||'Error',false);
+}
+
 // Init
-loadOverview();
+initDashboard();
 </script>
 </body></html>"""
 
