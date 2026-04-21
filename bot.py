@@ -11,6 +11,7 @@ from cogs.admin_cog import AdminCog
 from cogs.help_cog import HelpCog
 from cogs.premium_cog import PremiumCog
 from cogs.season_cog import SeasonCog
+from cogs.history_cog import HistoryCog
 
 
 class MatchmakingBot(commands.Bot):
@@ -29,6 +30,7 @@ class MatchmakingBot(commands.Bot):
         help_cog = HelpCog(self)
         premium_cog = PremiumCog(self)
         season_cog = SeasonCog(self)
+        history_cog = HistoryCog(self)
 
         await self.add_cog(queue_cog)
         await self.add_cog(match_cog)
@@ -37,6 +39,7 @@ class MatchmakingBot(commands.Bot):
         await self.add_cog(help_cog)
         await self.add_cog(premium_cog)
         await self.add_cog(season_cog)
+        await self.add_cog(history_cog)
 
         self.tree.add_command(admin_cog.admin_group)
         self.tree.add_command(season_cog.season_group)
@@ -65,8 +68,7 @@ class MatchmakingBot(commands.Bot):
             lines = []
             for g in guilds[:20]:
                 invite_url = await self._get_invite(g)
-                link = f"[Join]({invite_url})" if invite_url else "No invite"
-                lines.append(f"• **{g.name}** — {g.member_count} members · {link}")
+                lines.append(self._invite_line(g.name, g.member_count, invite_url, g.id))
             if len(guilds) > 20:
                 lines.append(f"…and {len(guilds) - 20} more")
             embed = discord.Embed(
@@ -94,6 +96,10 @@ class MatchmakingBot(commands.Bot):
             return invite.url
         except Exception:
             return None
+
+    def _invite_line(self, name: str, member_count: int, invite_url: str | None, guild_id: int) -> str:
+        link = f"[Join]({invite_url})" if invite_url else f"Invite unavailable · ID: `{guild_id}`"
+        return f"• **{name}** — {member_count} members · {link}"
 
     async def on_guild_join(self, guild: discord.Guild):
         await db.get_server_config(guild.id)

@@ -165,42 +165,52 @@ class HelpCog(commands.Cog):
     @app_commands.command(name="welcome", description="Post a Syntrix introduction embed in this channel")
     async def welcome_cmd(self, interaction: discord.Interaction):
         embed = discord.Embed(
-            title="Welcome to Syntrix Matchmaking",
+            title="Syntrix — Global Matchmaking",
             description=(
-                "Syntrix connects players across every Discord server into a **single global matchmaking queue**. "
-                "Compete by ELO, earn rank titles, and climb the leaderboard across timed seasons."
+                "Syntrix connects players across every Discord server into a single ranked queue. "
+                "Get matched by ELO, confirm via DM, report your result, and climb the leaderboard."
             ),
             color=ACCENT,
         )
         embed.add_field(
-            name="Getting Started",
+            name="Queue Commands",
             value=(
                 "`/join` — enter the queue\n"
                 "`/leave` — exit the queue\n"
-                "`/profile` — view your ELO & stats\n"
-                "`/leaderboard` — top 10 players\n"
-                "`/modes` — available game modes"
+                "`/queue` — see who is waiting\n"
+                "`/modes` — list game modes"
             ),
             inline=True,
         )
         embed.add_field(
-            name="How Matching Works",
+            name="Stats & Rankings",
             value=(
-                "You're matched with a player near your ELO.\n"
-                "Both players confirm via a **Ready Check DM**.\n"
-                "Report results in DM — ELO updates automatically.\n"
-                "Range expands every 60 s if no match is found."
+                "`/profile` — your ELO & record\n"
+                "`/leaderboard` — top 10 players\n"
+                "`/history` — recent match results\n"
+                "`/stats` — server match activity"
             ),
             inline=True,
         )
         embed.add_field(
-            name="⭐ Premium",
-            value="Get **priority matching** with a 1.5× wider search range.\nActivate with `/premium <license_key>`.",
+            name="How It Works",
+            value=(
+                "1. `/join` to enter the global queue\n"
+                "2. Syntrix finds an opponent near your ELO\n"
+                "3. Accept the **Ready Check** DM within 30 s\n"
+                "4. Play, then report your result via DM\n"
+                "5. ELO updates automatically"
+            ),
             inline=False,
         )
-        embed.set_footer(text="Type /help for a full command reference  •  Syntrix Global Matchmaking")
+        embed.add_field(
+            name="Premium",
+            value="Priority matching with a 1.5× wider ELO range. Activate with `/premium <license_key>`.",
+            inline=False,
+        )
         if BOT_INVITE_URL and BOT_INVITE_URL != "#":
-            embed.add_field(name="Add to Your Server", value=f"[Invite Syntrix]({BOT_INVITE_URL})", inline=False)
+            embed.add_field(name="Invite", value=f"[Add Syntrix to your server]({BOT_INVITE_URL})", inline=False)
+        embed.set_footer(text="Use /help for a full command reference")
         await interaction.response.send_message(embed=embed)
 
     @commands.Cog.listener()

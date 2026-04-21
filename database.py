@@ -563,3 +563,54 @@ async def delete_queue_mode(mode_id: str):
             "UPDATE queue_modes SET enabled = 0 WHERE mode_id = ?", (mode_id,)
         )
         await db.commit()
+
+
+# ── Match history & server stats ──────────────────────────────────────────────
+
+async def get_match_history(discord_id: int, limit: int = 10) -> list[dict]:
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        async with db.execute(
+            """SELECT m.*,
+                 CASE WHEN m.player1_id = ? THEN p2.username ELSE p1.username END AS opponent_name,
+                 CASE WHEN m.player1_id = ? THEN m.player2_id  ELSE m.player1_id  END AS opponent_id,
+                 CASE
+                   WHEN m.winner_id = ?           THEN 'win'
+                   WHEN m.winner_id IS NOT NULL   THEN 'loss'
+                   WHEN m.status = 'cancelled'    THEN 'cancelled'
+                   ELSE m.status
+                 END AS result
+               FROM matches m
+               JOIN players p1 ON m.player1_id = p1.discord_id
+               JOIN players p2 ON m.player2_id = p2.discord_id
+               WHERE (m.player1_id = ? OR m.player2_id = ?)
+                 AND m.status IN ('completed', 'cancelled')
+               ORDER BY m.created_at DESC LIMIT ?""",
+            (discord_id, discord_id, discord_id, discord_id, discord_id, limit),
+        ) as cur:
+            return [dict(r) for r in await cur.fetchall()]
+
+
+async def get_server_stats(server_id: int) -> dict:
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        async with db.execute(
+            """SELECT
+                 COUNT(*)                                           AS total_matches,
+                 SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) AS completed,
+                 SUM(CASE WHEN status = 'cancelled' THEN 1 ELSE 0 END) AS cancelled,
+                 SUM(CASE WHEN status IN ('pending','active') THEN 1 ELSE 0 END) AS active
+               FROM matches WHERE origin_server = ?""",
+            (server_id,),
+        ) as cur:
+            row = dict(await cur.fetchone())
+        async with db.execute(
+            "SELECT COUNT(*) AS in_queue FROM queue WHERE server_id = ?", (server_id,)
+        ) as cur:
+            row["in_queue"] = (await cur.fetchone())["in_queue"]
+        async with db.execute(
+            "SELECT COUNT(DISTINCT discord_id) AS unique_players FROM queue WHERE server_id = ?",
+            (server_id,),
+        ) as cur:
+            row["unique_players"] = (await cur.fetchone())["unique_players"]
+        return row
