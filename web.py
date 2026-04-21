@@ -473,7 +473,14 @@ tr:hover td{background:rgba(255,255,255,.02)}
 .perk{font-size:14px;color:var(--sub)}
 footer{border-top:1px solid var(--border);margin-top:80px;padding:40px 0;text-align:center;color:var(--muted);font-size:13px}
 .fl{font-size:18px;font-weight:900;letter-spacing:3px;background:linear-gradient(135deg,#a855f7,#7c3aed);-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:10px}
-@media(max-width:640px){.stats{grid-template-columns:1fr}.hero{padding:60px 0 40px}th,td{padding:12px 14px}.nav-links .nl{display:none}}
+.cmd-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px}
+.cmd-group{background:var(--card);border:1px solid var(--border);border-radius:var(--r);padding:20px 22px}
+.cg-label{font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:1.2px;margin-bottom:12px}
+.cmd-list{display:flex;flex-direction:column;gap:8px}
+.cmd-row{display:flex;align-items:baseline;justify-content:space-between;gap:12px;font-size:13px}
+.cmd-row code{background:rgba(124,58,237,.12);color:#a855f7;padding:2px 8px;border-radius:5px;font-size:12px;white-space:nowrap;flex-shrink:0}
+.cmd-row span{color:var(--muted);text-align:right;font-size:12px}
+@media(max-width:640px){.stats{grid-template-columns:1fr}.hero{padding:60px 0 40px}th,td{padding:12px 14px}.nav-links .nl{display:none}.cmd-grid{grid-template-columns:1fr}}
 </style>
 </head>
 <body>
@@ -482,6 +489,7 @@ footer{border-top:1px solid var(--border);margin-top:80px;padding:40px 0;text-al
 <nav><div class="wrap"><div class="nav-i">
   <div class="logo">SYNTRIX</div>
   <div class="nav-links">
+    <a href="#commands" class="nl">Commands</a>
     <a href="#leaderboard" class="nl">Leaderboard</a>
     <a href="#queue" class="nl">Queue</a>
     <a href="#matches" class="nl">Matches</a>
@@ -513,6 +521,58 @@ footer{border-top:1px solid var(--border);margin-top:80px;padding:40px 0;text-al
     <div class="feat"><div class="feat-icon">🏆</div><div class="feat-title">Season System</div><div class="feat-desc">Competitive seasons with soft ELO resets and full stat history.</div></div>
     <div class="feat"><div class="feat-icon">⭐</div><div class="feat-title">Premium</div><div class="feat-desc">Wider match range, priority queue, and exclusive badges.</div></div>
     <div class="feat"><div class="feat-icon">🛡️</div><div class="feat-title">Admin Tools</div><div class="feat-desc">Full ban, ELO control, result override, and server configuration.</div></div>
+  </div>
+
+  <div class="sec" id="commands">
+    <div class="sh"><div class="st"><div class="si">📋</div>Commands</div></div>
+    <div class="cmd-grid">
+      <div class="cmd-group">
+        <div class="cg-label">Queue</div>
+        <div class="cmd-list">
+          <div class="cmd-row"><code>/join [mode]</code><span>Enter the matchmaking queue</span></div>
+          <div class="cmd-row"><code>/leave</code><span>Exit the queue</span></div>
+          <div class="cmd-row"><code>/queue [mode]</code><span>See who is waiting</span></div>
+          <div class="cmd-row"><code>/modes</code><span>List available game modes</span></div>
+        </div>
+      </div>
+      <div class="cmd-group">
+        <div class="cg-label">Match</div>
+        <div class="cmd-list">
+          <div class="cmd-row"><code>/match</code><span>View your active match</span></div>
+          <div class="cmd-row"><code>/cancel</code><span>Cancel your active match</span></div>
+        </div>
+      </div>
+      <div class="cmd-group">
+        <div class="cg-label">Stats</div>
+        <div class="cmd-list">
+          <div class="cmd-row"><code>/profile [user]</code><span>ELO, rank, wins &amp; losses</span></div>
+          <div class="cmd-row"><code>/leaderboard</code><span>Top 10 players by ELO</span></div>
+          <div class="cmd-row"><code>/history [user]</code><span>Recent match results</span></div>
+          <div class="cmd-row"><code>/stats</code><span>Server match activity</span></div>
+        </div>
+      </div>
+      <div class="cmd-group">
+        <div class="cg-label">Seasons</div>
+        <div class="cmd-list">
+          <div class="cmd-row"><code>/season info</code><span>Current season details</span></div>
+          <div class="cmd-row"><code>/season history</code><span>Your past season records</span></div>
+          <div class="cmd-row"><code>/season list</code><span>All seasons</span></div>
+        </div>
+      </div>
+      <div class="cmd-group">
+        <div class="cg-label">Premium</div>
+        <div class="cmd-list">
+          <div class="cmd-row"><code>/premium</code><span>Check or activate premium</span></div>
+        </div>
+      </div>
+      <div class="cmd-group">
+        <div class="cg-label">Utility</div>
+        <div class="cmd-list">
+          <div class="cmd-row"><code>/welcome</code><span>Post an intro embed</span></div>
+          <div class="cmd-row"><code>/help</code><span>Full command reference</span></div>
+        </div>
+      </div>
+    </div>
   </div>
 
   <div class="premium-cta">

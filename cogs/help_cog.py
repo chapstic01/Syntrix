@@ -29,6 +29,7 @@ HELP_PAGES = {
                 "🪨 Iron · 🥉 Bronze · 🥈 Silver · 🥇 Gold · 💎 Platinum · 💠 Diamond · 👑 Master"
             )),
             ("Queue Expansion", "If no match is found, your search range widens by ±100 ELO every 60 seconds."),
+            ("Utility", "`/welcome` — post a public intro embed\n`/stats` — server match activity\n`/history` — your recent match results\n`/help` — this menu"),
         ],
         "color": ACCENT,
     },
@@ -65,8 +66,10 @@ HELP_PAGES = {
         "title": "Syntrix — Profile & Stats",
         "description": "Track your performance, compare with others, and follow the competitive ladder.",
         "fields": [
-            ("`/profile [user]`", "View full stats for yourself or another player — ELO, rank, wins, losses, win rate, and match count. Leave `user` blank for your own profile."),
+            ("`/profile [user]`", "View full stats for yourself or another player — ELO, rank, wins, losses, win rate, and total matches. Leave `user` blank for your own profile."),
             ("`/leaderboard`", "The top 10 players by ELO across all servers. 🥇🥈🥉 medals for the podium."),
+            ("`/history [user] [limit]`", "View recent match results — shows outcome (win/loss/cancelled), opponent name, date, and mode for each match. Defaults to your last 10 matches; max 15."),
+            ("`/stats`", "Server-scoped statistics: total matches played here, completed, cancelled, active now, and current queue size."),
         ],
         "color": discord.Color.green(),
     },
