@@ -1,7 +1,7 @@
 import discord
 from discord import app_commands
 from discord.ext import commands
-from config import BOT_INVITE_URL, PREMIUM_URL, PREMIUM_PRICE, SUPPORT_SERVER
+from config import BOT_INVITE_URL, PREMIUM_URL, PREMIUM_PRICE, SUPPORT_SERVER, DASHBOARD_URL
 
 
 ACCENT = discord.Color.from_str("#7c3aed")
@@ -40,10 +40,11 @@ HELP_PAGES = {
         "title": "Syntrix — Queue Commands",
         "description": "Commands for entering, managing, and browsing the global matchmaking queue.",
         "fields": [
-            ("`/join [mode]`", "Enter the matchmaking queue. Defaults to **Ranked**. Use the `mode` option to join Casual or any custom mode."),
+            ("`/join [mode]`", "Enter the matchmaking queue. Defaults to **Ranked**. Use the `mode` option to join Casual or a custom mode."),
             ("`/leave`", "Exit the queue at any time before a match is found."),
-            ("`/queue [mode]`", "See all players currently waiting in the queue. Filter by mode with the optional argument."),
-            ("`/modes`", "List every available queue mode (Ranked, Casual, and any server-specific modes)."),
+            ("`/queue [mode]`", "See everyone currently waiting. Includes a tip showing the exact `/join` command for that mode."),
+            ("`/modes`", "List every available queue mode with descriptions."),
+            ("`/recruit [mode]`", "Post a public embed to recruit players into a queue — shows current count and the join command. Great for drumming up a match."),
         ],
         "color": discord.Color.blue(),
     },
@@ -51,13 +52,20 @@ HELP_PAGES = {
         "label": "Match",
         "emoji": "⚔️",
         "title": "Syntrix — Match Commands",
-        "description": "Once you're matched, Syntrix sends you a DM with **Ready Check** buttons. You have 30 seconds to accept.",
+        "description": "Once matched, Syntrix sends both players a **Ready Check** DM. You have 30 seconds to accept — if either player times out, the other is re-queued.",
         "fields": [
-            ("`/match`", "View your current active match — shows both players, ELO, and current status."),
-            ("`/cancel`", "Cancel your active match. Your opponent will be notified via DM."),
-            ("Ready Check", "Click **Accept** in the DM within 30 s. If a player times out, the ready player is re-queued automatically."),
-            ("Reporting Results", "After your match, click **I Won** or **I Lost** in the DM. Both reports must agree — conflicts require an admin to use `/admin forcewinner`."),
-            ("Casual Mode", "Casual matches skip ELO changes — great for practice or custom games."),
+            ("`/match`", "View your current active match — players, ELO, mode, and status."),
+            ("`/cancel`", "Cancel your active match. Your opponent is notified via DM."),
+            ("Map Voting 🗺️", "If the server has a game assigned to your queue, both players receive a **map vote** DM after the ready check. Same pick = that map; split = random selection."),
+            ("Auto Channels 🔊", "A private **voice + text channel** is created for your match automatically and deleted when the match ends. Requires a category to be configured by a server admin."),
+            ("Reporting Results", (
+                "After your match, report via DM button.\n"
+                "• **Standard mode:** click **I Won** or **I Lost**\n"
+                "• **Score mode:** enter the final score (e.g. 3–1) — higher score wins\n"
+                "• If **evidence is required**, include a screenshot URL\n"
+                "Conflicting reports cancel the match — use `/admin forcewinner` to resolve."
+            )),
+            ("Casual Mode", "Casual matches never change ELO — good for practice or custom games."),
         ],
         "color": discord.Color.orange(),
     },
@@ -109,24 +117,50 @@ HELP_PAGES = {
         ],
         "color": discord.Color.gold(),
     },
-    "admin": {
-        "label": "Admin",
-        "emoji": "🔧",
-        "title": "Syntrix — Admin Commands",
-        "description": "Admin commands are restricted to the bot owner (set via `ADMIN_USER_ID` in the bot's environment). Server admins can use `/admin setup` to configure their server.",
+    "setup": {
+        "label": "Server Setup",
+        "emoji": "⚙️",
+        "title": "Syntrix — Server Setup",
+        "description": (
+            "Anyone with **Manage Server** permission can configure Syntrix for their server — "
+            "via slash commands or the **dashboard**."
+            + (f"\n\n🖥️ **Dashboard:** {DASHBOARD_URL}" if DASHBOARD_URL else "")
+        ),
         "fields": [
-            ("`/admin setup [queue_channel] [results_channel]`", "Point the bot at the channels it should use for queue announcements and match results in this server."),
+            ("`/admin setup`", "Set the queue announcements channel and results channel for this server."),
+            ("`/admin setgame <mode> <game>`", "Assign a game to a queue mode. Players vote on the map before each match. Free: 1 game — Server Premium: up to 3."),
+            ("`/admin removegame <mode>`", "Remove a game assignment from a queue mode."),
+            ("`/admin listgames`", "Show all game assignments for this server."),
+            ("`/admin scoremode <on/off>`", "Toggle score-based match reporting. When on, players enter the final score instead of Win/Loss buttons."),
+            ("`/admin requireevidence <on/off>`", "Require a screenshot URL when players submit results."),
+            ("`/admin setrounds <number>`", "Set the expected rounds per match (shown to players)."),
+            ("`/admin rematchcooldown <minutes>`", "Prevent the same two players matching again for N minutes. `0` = disabled."),
+            ("`/admin anonymous <on/off>`", "Hide both players' names in the Match Found DM until both click Ready."),
+            ("`/admin matchcategory <category_id>`", "Discord category where auto voice + text channels are created per match."),
+            ("`/admin setupdate <channel>`", "Channel where `/update` owner broadcasts are posted in this server."),
+            ("`/admin serverpremium <on/off>`", "Enable server premium — unlocks up to 3 game queues."),
+            ("`/admin serversettings`", "View all current settings for this server in one embed."),
+        ],
+        "color": discord.Color.from_str("#7c3aed"),
+    },
+    "admin": {
+        "label": "Admin — Players",
+        "emoji": "🔧",
+        "title": "Syntrix — Admin Player Commands",
+        "description": "Player management commands. Bot owner commands (`/update`, `/season start/end`) are marked — all others work for any server admin.",
+        "fields": [
             ("`/admin setelo <user> <elo>`", "Override a player's ELO to any value (min 0)."),
             ("`/admin resetstats <user>`", "Reset a player's ELO to 1000 and clear their win/loss record."),
-            ("`/admin ban <user> [reason]`", "Prevent a player from using matchmaking in this server. Server-specific — does not affect other servers."),
+            ("`/admin ban <user> [reason]`", "Ban a player from matchmaking in this server only. Does not affect other servers."),
             ("`/admin unban <user>`", "Lift a server ban."),
-            ("`/admin forcewinner <match_id> <user>`", "Force a match result and apply ELO when players submit conflicting reports."),
+            ("`/admin forcewinner <match_id> <user>`", "Force a match result and apply ELO — use when players submit conflicting reports."),
             ("`/admin removequeue <user>`", "Remove a specific player from the queue immediately."),
-            ("`/admin grantpremium <user>`", "Manually grant premium to a player without a Gumroad key."),
-            ("`/admin revokepremium <user>`", "Remove premium from a player."),
-            ("`/admin addmode <id> <name> [desc]`", "Create a new custom queue mode."),
-            ("`/admin removemode <id>`", "Delete a custom queue mode (built-in modes cannot be removed)."),
-            ("`/season start <name>` · `/season end`", "Start or end a ranked season (owner only)."),
+            ("`/admin grantpremium <user>`", "Manually grant premium to a player. *(Owner only)*"),
+            ("`/admin revokepremium <user>`", "Remove premium from a player. *(Owner only)*"),
+            ("`/admin addmode <id> <name>`", "Create a custom queue mode. *(Owner only)*"),
+            ("`/admin removemode <id>`", "Disable a custom queue mode. *(Owner only)*"),
+            ("`/update`", "Open a modal to broadcast an update embed to all servers. *(Owner only)*"),
+            ("`/season start <name>` · `/season end`", "Start or end a ranked season. *(Owner only)*"),
         ],
         "color": discord.Color.red(),
     },

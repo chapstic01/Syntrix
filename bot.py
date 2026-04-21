@@ -2,7 +2,7 @@ import os
 import asyncio
 import discord
 from discord.ext import commands
-from config import DISCORD_TOKEN
+from config import DISCORD_TOKEN, BOT_INVITE_URL, SUPPORT_SERVER, DASHBOARD_URL, PREMIUM_URL, PREMIUM_PRICE
 import database as db
 import matchmaking
 from web import app as web_app
@@ -116,25 +116,57 @@ class MatchmakingBot(commands.Bot):
         await db.get_server_config(guild.id)
         await db.sync_guilds([(guild.id, guild.name, guild.member_count)])
         print(f"[bot] Joined guild: {guild.name} ({guild.id})")
+        channel = guild.system_channel or next(
+            (c for c in guild.text_channels if c.permissions_for(guild.me).send_messages), None
+        )
+        if not channel:
+            return
+        embed = discord.Embed(
+            title="👋 Syntrix has joined the server!",
+            description=(
+                "**Global competitive matchmaking for Discord.**\n"
+                "Players from every server compete in one ELO-ranked queue."
+            ),
+            color=discord.Color.from_str("#7c3aed"),
+        )
+        embed.add_field(
+            name="For Players",
+            value=(
+                "`/join` — enter the matchmaking queue\n"
+                "`/profile` — view your ELO and stats\n"
+                "`/help` — full command reference"
+            ),
+            inline=True,
+        )
+        embed.add_field(
+            name="For Server Admins",
+            value=(
+                "`/admin setup` — set queue & results channels\n"
+                "`/admin setgame` — assign a game + map voting\n"
+                "`/admin serversettings` — view all config"
+            ),
+            inline=True,
+        )
+        dashboard_line = (f"\n🖥️ **Dashboard:** {DASHBOARD_URL}" if DASHBOARD_URL else "")
+        premium_line = ""
+        if PREMIUM_URL:
+            price = f" (${PREMIUM_PRICE})" if PREMIUM_PRICE else ""
+            premium_line = f"\n⭐ **Premium{price}:** {PREMIUM_URL}"
+        support_line = f"\n💬 **Support:** {SUPPORT_SERVER}" if SUPPORT_SERVER else ""
+        embed.add_field(
+            name="Links",
+            value=(
+                (f"[Invite Syntrix]({BOT_INVITE_URL})\n" if BOT_INVITE_URL and BOT_INVITE_URL != "#" else "")
+                + dashboard_line + premium_line + support_line
+            ).strip() or "Use `/help` to get started.",
+            inline=False,
+        )
+        embed.set_footer(text="Run /welcome to post an intro embed for your members")
+        await channel.send(embed=embed)
 
     async def on_guild_remove(self, guild: discord.Guild):
         await db.remove_guild(guild.id)
         print(f"[bot] Left guild: {guild.name} ({guild.id})")
-
-        system_channel = guild.system_channel
-        if system_channel and system_channel.permissions_for(guild.me).send_messages:
-            embed = discord.Embed(
-                title="Syntrix Matchmaking is here!",
-                description=(
-                    "Thanks for adding me!\n\n"
-                    "Use `/join` to enter the **global matchmaking queue**.\n"
-                    "Try `/modes` to see available game modes.\n"
-                    "Type `/help` for a full command list.\n\n"
-                    "⭐ Upgrade to **Premium** with `/premium` for priority matching!"
-                ),
-                color=discord.Color.purple(),
-            )
-            await system_channel.send(embed=embed)
 
 
 bot = MatchmakingBot()
