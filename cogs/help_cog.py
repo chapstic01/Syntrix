@@ -1,7 +1,7 @@
 import discord
 from discord import app_commands
 from discord.ext import commands
-from config import BOT_INVITE_URL
+from config import BOT_INVITE_URL, PREMIUM_URL, PREMIUM_PRICE, SUPPORT_SERVER
 
 
 ACCENT = discord.Color.from_str("#7c3aed")
@@ -30,6 +30,7 @@ HELP_PAGES = {
             )),
             ("Queue Expansion", "If no match is found, your search range widens by ±100 ELO every 60 seconds."),
             ("Utility", "`/welcome` — post a public intro embed\n`/stats` — server match activity\n`/history` — your recent match results\n`/help` — this menu"),
+            ("Support", (f"[Join the support server]({SUPPORT_SERVER})" if SUPPORT_SERVER else "Contact the bot owner for help.")),
         ],
         "color": ACCENT,
     },
@@ -77,13 +78,21 @@ HELP_PAGES = {
         "label": "Premium ⭐",
         "emoji": "⭐",
         "title": "Syntrix Premium",
-        "description": "Upgrade your experience with **Syntrix Premium** — purchase a license on Gumroad and activate it in seconds.",
+        "description": (
+            "Upgrade your experience with **Syntrix Premium**"
+            + (f" — only **${PREMIUM_PRICE}**" if PREMIUM_PRICE else "")
+            + ". Purchase a license on Gumroad and activate it in seconds."
+        ),
         "fields": [
             ("`/premium`", "Check your current premium status."),
             ("`/premium [license_key]`", "Activate premium with your Gumroad license key."),
             ("Priority Matching ⚡", "Premium users get a **1.5× wider ELO search range**, so you find matches faster."),
             ("Visual Flair ✨", "Your queue entry shows a ⭐ star, and your join confirmation uses a special purple embed."),
-            ("How to get it", "Purchase at the Syntrix Gumroad page, copy the license key from your receipt email, and paste it into `/premium`."),
+            ("More Game Queues 🎮", "Premium servers can assign **up to 3 different games** with separate queues."),
+            ("How to get it", (
+                (f"[Purchase on Gumroad]({PREMIUM_URL})" if PREMIUM_URL else "Purchase on Gumroad")
+                + ", copy the license key from your receipt email, and paste it into `/premium`."
+            )),
         ],
         "color": discord.Color.from_str("#a855f7"),
     },
@@ -152,7 +161,10 @@ def _build_embed(page: dict) -> discord.Embed:
     )
     for name, value in page["fields"]:
         embed.add_field(name=name, value=value, inline=False)
-    embed.set_footer(text="Syntrix Global Matchmaking  •  /join to get started")
+    footer = "Syntrix Global Matchmaking  •  /join to get started"
+    if SUPPORT_SERVER:
+        footer += f"  •  Support: {SUPPORT_SERVER}"
+    embed.set_footer(text=footer)
     return embed
 
 
@@ -206,13 +218,19 @@ class HelpCog(commands.Cog):
             ),
             inline=False,
         )
-        embed.add_field(
-            name="Premium",
-            value="Priority matching with a 1.5× wider ELO range. Activate with `/premium <license_key>`.",
-            inline=False,
-        )
+        premium_val = "Priority matching with a 1.5× wider ELO range."
+        if PREMIUM_URL:
+            premium_val += f" [Get Premium]({PREMIUM_URL})"
+        if PREMIUM_PRICE:
+            premium_val += f" · **${PREMIUM_PRICE}**"
+        embed.add_field(name="Premium ⭐", value=premium_val, inline=False)
+        links = []
         if BOT_INVITE_URL and BOT_INVITE_URL != "#":
-            embed.add_field(name="Invite", value=f"[Add Syntrix to your server]({BOT_INVITE_URL})", inline=False)
+            links.append(f"[Add to your server]({BOT_INVITE_URL})")
+        if SUPPORT_SERVER:
+            links.append(f"[Support server]({SUPPORT_SERVER})")
+        if links:
+            embed.add_field(name="Links", value="  •  ".join(links), inline=False)
         embed.set_footer(text="Use /help for a full command reference")
         await interaction.response.send_message(embed=embed)
 

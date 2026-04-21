@@ -2,7 +2,7 @@ import httpx
 import discord
 from discord import app_commands
 from discord.ext import commands
-from config import GUMROAD_PRODUCT_ID
+from config import GUMROAD_PRODUCT_ID, PREMIUM_URL, PREMIUM_PRICE
 import database as db
 
 
@@ -51,14 +51,22 @@ class PremiumCog(commands.Cog):
                 )
                 embed.set_footer(text=f"Activated: {info['activated_at'][:10]}")
             else:
+                price_str = f"**${PREMIUM_PRICE}**" if PREMIUM_PRICE else "available now"
+                buy_line = f"[Purchase on Gumroad]({PREMIUM_URL})" if PREMIUM_URL else "Purchase on Gumroad"
                 embed = discord.Embed(
-                    title="Premium",
+                    title="⭐ Syntrix Premium",
                     description=(
-                        "You don't have premium.\n\n"
-                        "Purchase from our Gumroad store and activate with:\n"
+                        f"Upgrade for {price_str} and get matched faster.\n\n"
+                        "**Perks:**\n"
+                        "✨ 1.5× wider matchmaking range\n"
+                        "⭐ Premium badge on leaderboard & profile\n"
+                        "🏆 Priority queue position\n"
+                        "📊 Full season history\n"
+                        "🎮 Up to 3 game queues per server\n\n"
+                        f"{buy_line}, then activate with:\n"
                         "`/premium license_key:<your-key>`"
                     ),
-                    color=discord.Color.greyple(),
+                    color=discord.Color.from_str("#7c3aed"),
                 )
             await interaction.followup.send(embed=embed, ephemeral=True)
             return
