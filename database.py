@@ -101,6 +101,43 @@ async def init_db():
             );
         """)
 
+        await db.executescript("""
+            CREATE TABLE IF NOT EXISTS server_queue_games (
+                server_id   INTEGER NOT NULL,
+                queue_mode  TEXT NOT NULL,
+                game_id     TEXT NOT NULL,
+                PRIMARY KEY (server_id, queue_mode)
+            );
+            CREATE TABLE IF NOT EXISTS map_votes (
+                match_id    INTEGER NOT NULL,
+                player_id   INTEGER NOT NULL,
+                map_choice  TEXT NOT NULL,
+                PRIMARY KEY (match_id, player_id)
+            );
+        """)
+
+        # Schema migrations — safe to run repeatedly
+        _migrations = [
+            "ALTER TABLE server_config ADD COLUMN require_evidence INTEGER DEFAULT 0",
+            "ALTER TABLE server_config ADD COLUMN score_mode INTEGER DEFAULT 0",
+            "ALTER TABLE server_config ADD COLUMN rematch_cooldown INTEGER DEFAULT 0",
+            "ALTER TABLE server_config ADD COLUMN anonymous_queue INTEGER DEFAULT 0",
+            "ALTER TABLE server_config ADD COLUMN update_channel_id INTEGER",
+            "ALTER TABLE server_config ADD COLUMN match_category_id INTEGER",
+            "ALTER TABLE server_config ADD COLUMN server_premium INTEGER DEFAULT 0",
+            "ALTER TABLE server_config ADD COLUMN rounds_per_match INTEGER DEFAULT 0",
+            "ALTER TABLE matches ADD COLUMN voice_channel_id INTEGER",
+            "ALTER TABLE matches ADD COLUMN text_channel_id INTEGER",
+            "ALTER TABLE matches ADD COLUMN p1_score INTEGER",
+            "ALTER TABLE matches ADD COLUMN p2_score INTEGER",
+            "ALTER TABLE matches ADD COLUMN map_played TEXT",
+        ]
+        for sql in _migrations:
+            try:
+                await db.execute(sql)
+            except Exception:
+                pass
+
         for mode_id, display_name, description in DEFAULT_QUEUE_MODES:
             await db.execute(
                 "INSERT OR IGNORE INTO queue_modes (mode_id, display_name, description) VALUES (?, ?, ?)",
@@ -589,6 +626,127 @@ async def get_match_history(discord_id: int, limit: int = 10) -> list[dict]:
             (discord_id, discord_id, discord_id, discord_id, discord_id, limit),
         ) as cur:
             return [dict(r) for r in await cur.fetchall()]
+
+
+# ── Server queue games ────────────────────────────────────────────────────────
+
+async def get_server_queue_game(server_id: int, queue_mode: str) -> str | None:
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        async with db.execute(
+            "SELECT game_id FROM server_queue_games WHERE server_id=? AND queue_mode=?",
+            (server_id, queue_mode),
+        ) as cur:
+            row = await cur.fetchone()
+            return row["game_id"] if row else None
+
+
+async def set_server_queue_game(server_id: int, queue_mode: str, game_id: str):
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute(
+            "INSERT OR REPLACE INTO server_queue_games (server_id, queue_mode, game_id) VALUES (?,?,?)",
+            (server_id, queue_mode, game_id),
+        )
+        await db.commit()
+
+
+async def remove_server_queue_game(server_id: int, queue_mode: str):
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute(
+            "DELETE FROM server_queue_games WHERE server_id=? AND queue_mode=?",
+            (server_id, queue_mode),
+        )
+        await db.commit()
+
+
+async def get_server_queue_games(server_id: int) -> list[dict]:
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        async with db.execute(
+            "SELECT * FROM server_queue_games WHERE server_id=?", (server_id,)
+        ) as cur:
+            return [dict(r) for r in await cur.fetchall()]
+
+
+async def is_server_premium(server_id: int) -> bool:
+    async with aiosqlite.connect(DB_PATH) as db:
+        async with db.execute(
+            "SELECT server_premium FROM server_config WHERE server_id=?", (server_id,)
+        ) as cur:
+            row = await cur.fetchone()
+            return bool(row and row[0])
+
+
+# ── Map votes ─────────────────────────────────────────────────────────────────
+
+async def submit_map_vote(match_id: int, player_id: int, map_choice: str):
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute(
+            "INSERT OR REPLACE INTO map_votes (match_id, player_id, map_choice) VALUES (?,?,?)",
+            (match_id, player_id, map_choice),
+        )
+        await db.commit()
+
+
+async def get_map_votes(match_id: int) -> list[dict]:
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        async with db.execute(
+            "SELECT * FROM map_votes WHERE match_id=?", (match_id,)
+        ) as cur:
+            return [dict(r) for r in await cur.fetchall()]
+
+
+async def set_match_channels(match_id: int, voice_id: int, text_id: int):
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute(
+            "UPDATE matches SET voice_channel_id=?, text_channel_id=? WHERE match_id=?",
+            (voice_id, text_id, match_id),
+        )
+        await db.commit()
+
+
+async def set_match_map(match_id: int, map_name: str):
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute(
+            "UPDATE matches SET map_played=? WHERE match_id=?", (map_name, match_id)
+        )
+        await db.commit()
+
+
+async def set_match_score(match_id: int, player_id: int, score: int, p1_id: int):
+    col = "p1_score" if player_id == p1_id else "p2_score"
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute(
+            f"UPDATE matches SET {col}=? WHERE match_id=?", (score, match_id)
+        )
+        await db.commit()
+
+
+async def check_rematch_cooldown(p1_id: int, p2_id: int, cooldown_seconds: int) -> bool:
+    """Returns True if the pair can be matched (no active cooldown)."""
+    if cooldown_seconds <= 0:
+        return True
+    async with aiosqlite.connect(DB_PATH) as db:
+        async with db.execute(
+            """SELECT completed_at FROM matches
+               WHERE ((player1_id=? AND player2_id=?) OR (player1_id=? AND player2_id=?))
+                 AND status='completed'
+               ORDER BY completed_at DESC LIMIT 1""",
+            (p1_id, p2_id, p2_id, p1_id),
+        ) as cur:
+            row = await cur.fetchone()
+    if not row or not row[0]:
+        return True
+    from datetime import datetime, timezone
+    try:
+        last = datetime.fromisoformat(row[0].replace("Z", "+00:00"))
+        if last.tzinfo is None:
+            last = last.replace(tzinfo=timezone.utc)
+        elapsed = (datetime.now(timezone.utc) - last).total_seconds()
+        return elapsed >= cooldown_seconds
+    except Exception:
+        return True
 
 
 async def get_server_stats(server_id: int) -> dict:

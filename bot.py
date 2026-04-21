@@ -12,6 +12,7 @@ from cogs.help_cog import HelpCog
 from cogs.premium_cog import PremiumCog
 from cogs.season_cog import SeasonCog
 from cogs.history_cog import HistoryCog
+from cogs.update_cog import UpdateCog
 
 
 class MatchmakingBot(commands.Bot):
@@ -31,6 +32,7 @@ class MatchmakingBot(commands.Bot):
         premium_cog = PremiumCog(self)
         season_cog = SeasonCog(self)
         history_cog = HistoryCog(self)
+        update_cog = UpdateCog(self)
 
         await self.add_cog(queue_cog)
         await self.add_cog(match_cog)
@@ -40,6 +42,7 @@ class MatchmakingBot(commands.Bot):
         await self.add_cog(premium_cog)
         await self.add_cog(season_cog)
         await self.add_cog(history_cog)
+        await self.add_cog(update_cog)
 
         self.tree.add_command(admin_cog.admin_group)
         self.tree.add_command(season_cog.season_group)

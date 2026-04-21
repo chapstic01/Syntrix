@@ -37,9 +37,20 @@ async def run_matchmaking_loop(bot, interval: float = 5.0):
 
 
 async def _tick(bot):
+    _cooldown_cache.clear()
     modes = await db.get_queue_modes()
     for mode in modes:
         await _tick_mode(bot, mode["mode_id"])
+
+
+_cooldown_cache: dict[int, int] = {}
+
+
+async def _get_cooldown(server_id: int) -> int:
+    if server_id not in _cooldown_cache:
+        cfg = await db.get_server_config(server_id) if server_id else {}
+        _cooldown_cache[server_id] = int(cfg.get("rematch_cooldown") or 0)
+    return _cooldown_cache[server_id]
 
 
 async def _tick_mode(bot, mode: str):
@@ -73,6 +84,10 @@ async def _tick_mode(bot, mode: str):
 
             effective_range = max(elo_range, o_range)
             if abs(other["elo_at_join"] - entry["elo_at_join"]) <= effective_range:
+                # Check rematch cooldown (uses the server of the first player's queue entry)
+                cooldown = await _get_cooldown(entry["server_id"])
+                if not await db.check_rematch_cooldown(pid, oid, cooldown):
+                    continue
                 matched.add(pid)
                 matched.add(oid)
                 await db.dequeue(pid)

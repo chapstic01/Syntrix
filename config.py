@@ -43,3 +43,20 @@ def get_rank(elo: int) -> str:
         if elo >= threshold:
             return name
     return "🪨 Iron"
+
+
+MAX_GAMES_FREE = 1
+MAX_GAMES_PREMIUM = 3
+
+GAMES: dict[str, dict] = {
+    "valorant":    {"name": "Valorant",          "maps": ["Abyss","Ascent","Bind","Breeze","Fracture","Haven","Icebox","Lotus","Pearl","Split","Sunset"]},
+    "cs2":         {"name": "CS2",               "maps": ["Ancient","Anubis","Dust 2","Inferno","Mirage","Nuke","Overpass","Vertigo"]},
+    "rocket_league":{"name": "Rocket League",    "maps": ["Champions Field","DFH Stadium","Farmstead","Mannfield","Neo Tokyo","Salty Shores","Utopia Coliseum","Wasteland"]},
+    "call_of_duty":{"name": "Call of Duty",      "maps": ["Shipment","Nuketown","Rust","Hijacked","Firing Range","Summit","Array","Standoff"]},
+    "r6_siege":    {"name": "Rainbow Six Siege", "maps": ["Bank","Border","Chalet","Clubhouse","Coastline","Consulate","Kafe","Oregon","Skyscraper","Villa"]},
+    "apex_legends":{"name": "Apex Legends",      "maps": ["World's Edge","Kings Canyon","Olympus","Storm Point","Broken Moon"]},
+    "fortnite":    {"name": "Fortnite",          "maps": ["Chapter 1 OG","Chapter 2","Chapter 3","Chapter 4","Chapter 5","Chapter 6 Delta Force"]},
+    "war_tycoon":  {"name": "War Tycoon",        "maps": ["Desert Dunes","Arctic Outpost","Urban Warfare","Jungle Basin","Mountain Pass","Island Strike"]},
+    "minecraft_pvp":{"name": "Minecraft PvP",   "maps": ["Bedwars","Skywars","The Bridge","Sumo","UHC","Crystal PvP"]},
+    "custom":      {"name": "Custom / Other",    "maps": []},
+}
