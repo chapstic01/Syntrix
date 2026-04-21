@@ -294,6 +294,97 @@ async def dash_delete_mode(mode_id: str, request: Request):
     return JSONResponse({"ok": True})
 
 
+@app.get("/api/games")
+async def api_games():
+    from config import GAMES
+    return JSONResponse([
+        {"id": k, "name": v["name"], "map_count": len(v["maps"])}
+        for k, v in GAMES.items()
+    ])
+
+
+@app.get("/api/dash/server/{server_id}/settings")
+async def dash_get_server_settings(server_id: int, request: Request):
+    if not is_authed(request):
+        return JSONResponse({"error": "unauthorized"}, status_code=401)
+    rows = await query("SELECT * FROM server_config WHERE server_id=?", (server_id,))
+    return JSONResponse(rows[0] if rows else {})
+
+
+@app.post("/api/dash/server/{server_id}/settings")
+async def dash_update_server_settings(server_id: int, request: Request):
+    if not is_authed(request):
+        return JSONResponse({"error": "unauthorized"}, status_code=401)
+    body = await request.json()
+    allowed = ("score_mode", "require_evidence", "rounds_per_match", "rematch_cooldown",
+               "anonymous_queue", "match_category_id", "update_channel_id", "server_premium")
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute("INSERT OR IGNORE INTO server_config (server_id) VALUES (?)", (server_id,))
+        for key in allowed:
+            if key in body:
+                val = body[key]
+                if val == "" or val is None:
+                    val = None
+                await db.execute(
+                    f"UPDATE server_config SET {key}=? WHERE server_id=?", (val, server_id)
+                )
+        await db.commit()
+    return JSONResponse({"ok": True})
+
+
+@app.get("/api/dash/server/{server_id}/games")
+async def dash_server_games(server_id: int, request: Request):
+    if not is_authed(request):
+        return JSONResponse({"error": "unauthorized"}, status_code=401)
+    from config import GAMES
+    rows = await query(
+        "SELECT * FROM server_queue_games WHERE server_id=?", (server_id,)
+    )
+    for r in rows:
+        g = GAMES.get(r["game_id"], {})
+        r["game_name"] = g.get("name", r["game_id"])
+        r["map_count"] = len(g.get("maps", []))
+    return JSONResponse(rows)
+
+
+@app.post("/api/dash/server/{server_id}/games")
+async def dash_set_server_game(server_id: int, request: Request):
+    if not is_authed(request):
+        return JSONResponse({"error": "unauthorized"}, status_code=401)
+    from config import GAMES, MAX_GAMES_FREE, MAX_GAMES_PREMIUM
+    body = await request.json()
+    mode = body.get("queue_mode", "")
+    game_id = body.get("game_id", "")
+    if not mode or game_id not in GAMES:
+        return JSONResponse({"error": "Invalid mode or game"}, status_code=400)
+    premium_rows = await query(
+        "SELECT server_premium FROM server_config WHERE server_id=?", (server_id,)
+    )
+    is_premium = bool(premium_rows and premium_rows[0].get("server_premium"))
+    limit = MAX_GAMES_PREMIUM if is_premium else MAX_GAMES_FREE
+    existing = await query(
+        "SELECT queue_mode FROM server_queue_games WHERE server_id=?", (server_id,)
+    )
+    already_this_mode = any(r["queue_mode"] == mode for r in existing)
+    if not already_this_mode and len(existing) >= limit:
+        return JSONResponse({"error": f"Limit of {limit} game(s) reached"}, status_code=400)
+    await execute(
+        "INSERT OR REPLACE INTO server_queue_games (server_id, queue_mode, game_id) VALUES (?,?,?)",
+        (server_id, mode, game_id),
+    )
+    return JSONResponse({"ok": True})
+
+
+@app.delete("/api/dash/server/{server_id}/games/{mode}")
+async def dash_delete_server_game(server_id: int, mode: str, request: Request):
+    if not is_authed(request):
+        return JSONResponse({"error": "unauthorized"}, status_code=401)
+    await execute(
+        "DELETE FROM server_queue_games WHERE server_id=? AND queue_mode=?", (server_id, mode)
+    )
+    return JSONResponse({"ok": True})
+
+
 # ── Auth ───────────────────────────────────────────────────────────────────────
 
 @app.get("/dashboard/login", response_class=HTMLResponse)
@@ -518,9 +609,12 @@ footer{border-top:1px solid var(--border);margin-top:80px;padding:40px 0;text-al
     <div class="feat"><div class="feat-icon">🌍</div><div class="feat-title">Cross-Server Queue</div><div class="feat-desc">One global queue connects players across every server the bot is in.</div></div>
     <div class="feat"><div class="feat-icon">📊</div><div class="feat-title">ELO Ranking</div><div class="feat-desc">Standard chess ELO with Iron → Master rank tiers. Fair matchmaking always.</div></div>
     <div class="feat"><div class="feat-icon">🎮</div><div class="feat-title">Multiple Modes</div><div class="feat-desc">Ranked, Casual, and custom modes. ELO only changes in ranked.</div></div>
+    <div class="feat"><div class="feat-icon">🗺️</div><div class="feat-title">Map Voting</div><div class="feat-desc">Admins assign a game per queue. Players vote on the map before each match — ties are broken randomly.</div></div>
+    <div class="feat"><div class="feat-icon">🔊</div><div class="feat-title">Auto Match Channels</div><div class="feat-desc">Private voice + text channels are created for each match and deleted when it ends.</div></div>
+    <div class="feat"><div class="feat-icon">📸</div><div class="feat-title">Score Reporting</div><div class="feat-desc">Players submit final scores via a modal. Evidence screenshots can be required by admins.</div></div>
     <div class="feat"><div class="feat-icon">🏆</div><div class="feat-title">Season System</div><div class="feat-desc">Competitive seasons with soft ELO resets and full stat history.</div></div>
-    <div class="feat"><div class="feat-icon">⭐</div><div class="feat-title">Premium</div><div class="feat-desc">Wider match range, priority queue, and exclusive badges.</div></div>
-    <div class="feat"><div class="feat-icon">🛡️</div><div class="feat-title">Admin Tools</div><div class="feat-desc">Full ban, ELO control, result override, and server configuration.</div></div>
+    <div class="feat"><div class="feat-icon">⭐</div><div class="feat-title">Premium</div><div class="feat-desc">Wider match range, priority queue, up to 3 game queues, and exclusive badges.</div></div>
+    <div class="feat"><div class="feat-icon">🛡️</div><div class="feat-title">Admin Tools</div><div class="feat-desc">Full ban, ELO control, result override, rematch cooldown, and per-server configuration.</div></div>
   </div>
 
   <div class="sec" id="commands">
@@ -570,6 +664,40 @@ footer{border-top:1px solid var(--border);margin-top:80px;padding:40px 0;text-al
         <div class="cmd-list">
           <div class="cmd-row"><code>/welcome</code><span>Post an intro embed</span></div>
           <div class="cmd-row"><code>/help</code><span>Full command reference</span></div>
+          <div class="cmd-row"><code>/update</code><span>Broadcast update to all servers (owner)</span></div>
+        </div>
+      </div>
+      <div class="cmd-group">
+        <div class="cg-label">Admin — Channels</div>
+        <div class="cmd-list">
+          <div class="cmd-row"><code>/admin setup</code><span>Set queue &amp; results channels</span></div>
+          <div class="cmd-row"><code>/admin matchcategory</code><span>Category for auto voice/text channels</span></div>
+          <div class="cmd-row"><code>/admin setupdate</code><span>Channel for /update broadcasts</span></div>
+        </div>
+      </div>
+      <div class="cmd-group">
+        <div class="cg-label">Admin — Match Rules</div>
+        <div class="cmd-list">
+          <div class="cmd-row"><code>/admin setgame</code><span>Assign game to a queue mode</span></div>
+          <div class="cmd-row"><code>/admin removegame</code><span>Remove a game assignment</span></div>
+          <div class="cmd-row"><code>/admin scoremode</code><span>Toggle score-based reporting</span></div>
+          <div class="cmd-row"><code>/admin requireevidence</code><span>Require screenshot evidence</span></div>
+          <div class="cmd-row"><code>/admin setrounds</code><span>Set rounds per match</span></div>
+          <div class="cmd-row"><code>/admin rematchcooldown</code><span>Rematch cooldown in minutes</span></div>
+          <div class="cmd-row"><code>/admin anonymous</code><span>Hide player names until ready</span></div>
+          <div class="cmd-row"><code>/admin serverpremium</code><span>Enable premium features for server</span></div>
+          <div class="cmd-row"><code>/admin serversettings</code><span>View all current settings</span></div>
+        </div>
+      </div>
+      <div class="cmd-group">
+        <div class="cg-label">Admin — Players</div>
+        <div class="cmd-list">
+          <div class="cmd-row"><code>/admin setelo</code><span>Override a player's ELO</span></div>
+          <div class="cmd-row"><code>/admin resetstats</code><span>Reset ELO, wins &amp; losses</span></div>
+          <div class="cmd-row"><code>/admin ban</code><span>Ban player from this server's queue</span></div>
+          <div class="cmd-row"><code>/admin unban</code><span>Lift a server ban</span></div>
+          <div class="cmd-row"><code>/admin forcewinner</code><span>Force a match result</span></div>
+          <div class="cmd-row"><code>/admin removequeue</code><span>Remove someone from queue</span></div>
         </div>
       </div>
     </div>
@@ -900,6 +1028,7 @@ code.pill{background:rgba(124,58,237,.12);color:#c084fc;padding:2px 7px;border-r
   <button class="tb" data-tab="premium" onclick="showTab('premium',this)"><span class="tb-ico">⭐</span>Premium</button>
   <button class="tb" data-tab="seasons" onclick="showTab('seasons',this)"><span class="tb-ico">🏆</span>Seasons</button>
   <button class="tb" data-tab="modes" onclick="showTab('modes',this)"><span class="tb-ico">🎮</span>Queue Modes</button>
+  <button class="tb" data-tab="games" onclick="showTab('games',this)"><span class="tb-ico">🗺️</span>Games</button>
 </div>
 
 <div class="main">
@@ -983,6 +1112,32 @@ code.pill{background:rgba(124,58,237,.12);color:#c084fc;padding:2px 7px;border-r
     </div>
   </div>
 
+  <!-- GAMES -->
+  <div class="page" id="page-games">
+    <div class="page-head"><h2>Game Assignments</h2></div>
+    <div class="card" style="margin-bottom:16px">
+      <div class="card-head"><div class="card-title">Server</div></div>
+      <div class="inline-form">
+        <div class="fg"><label>Select Server</label><select id="games-server-sel" onchange="loadGames(this.value)" style="width:260px"><option value="">— choose a server —</option></select></div>
+      </div>
+    </div>
+    <div class="card" style="margin-bottom:16px" id="games-assign-card" style="display:none">
+      <div class="card-head"><div class="card-title">Assign Game to Mode</div></div>
+      <div class="inline-form">
+        <div class="fg"><label>Queue Mode</label><select id="ga-mode" style="width:140px"></select></div>
+        <div class="fg"><label>Game</label><select id="ga-game" style="width:200px"></select></div>
+        <button class="btn btn-primary" onclick="addGame()">Assign</button>
+      </div>
+    </div>
+    <div class="card" id="games-list-card">
+      <div class="card-head"><div class="card-title">Current Assignments</div><button class="btn btn-ghost btn-sm" onclick="loadGames(document.getElementById('games-server-sel').value)">↻ Refresh</button></div>
+      <table>
+        <thead><tr><th>Queue Mode</th><th>Game</th><th>Maps</th><th></th></tr></thead>
+        <tbody id="games-body"><tr><td colspan="4"><div class="empty">Select a server above to view its game assignments.</div></td></tr></tbody>
+      </table>
+    </div>
+  </div>
+
   <!-- MODES -->
   <div class="page" id="page-modes">
     <h2>Queue Modes</h2>
@@ -1007,6 +1162,28 @@ code.pill{background:rgba(124,58,237,.12);color:#c084fc;padding:2px 7px;border-r
     </div>
   </div>
 
+</div>
+
+<!-- Server Settings Modal -->
+<div class="modal-overlay" id="settings-modal">
+  <div class="modal" style="max-width:520px">
+    <div class="modal-title">Server Settings — <span id="sm-name" style="color:var(--accent2)"></span></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+      <div class="fg"><label>Score Mode</label><select id="sm-score-mode" style="width:100%"><option value="0">Off (Win/Lose buttons)</option><option value="1">On (Enter final score)</option></select></div>
+      <div class="fg"><label>Require Evidence</label><select id="sm-require-evidence" style="width:100%"><option value="0">No</option><option value="1">Yes (screenshot URL)</option></select></div>
+      <div class="fg"><label>Rounds per Match</label><input id="sm-rounds" type="number" min="1" max="99" placeholder="e.g. 3" style="width:100%"/></div>
+      <div class="fg"><label>Rematch Cooldown (min)</label><input id="sm-cooldown" type="number" min="0" placeholder="0 = disabled" style="width:100%"/></div>
+      <div class="fg"><label>Anonymous Queue</label><select id="sm-anon" style="width:100%"><option value="0">Off</option><option value="1">On (hide names until ready)</option></select></div>
+      <div class="fg"><label>Server Premium</label><select id="sm-server-premium" style="width:100%"><option value="0">Off</option><option value="1">On (up to 3 games)</option></select></div>
+    </div>
+    <div class="fg" style="margin-top:14px"><label>Match Category ID</label><input id="sm-category" placeholder="Discord category channel ID (for auto-channels)" style="width:100%"/></div>
+    <div class="fg" style="margin-top:14px"><label>Update Channel ID</label><input id="sm-update-ch" placeholder="Discord channel ID for /update broadcasts" style="width:100%"/></div>
+    <input type="hidden" id="sm-server-id"/>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="saveServerSettings()">Save Settings</button>
+    </div>
+  </div>
 </div>
 
 <!-- Server Config Modal -->
@@ -1063,6 +1240,7 @@ function showTab(name,el){
   if(name==='premium')loadPremium();
   if(name==='seasons')loadSeasons();
   if(name==='modes')loadModes();
+  if(name==='games')initGamesTab();
 }
 function closeModal(){document.querySelectorAll('.modal-overlay').forEach(m=>m.classList.remove('open'))}
 async function loadOverview(){
@@ -1082,7 +1260,7 @@ async function loadServers(){
     <td>${s.member_count.toLocaleString()}</td>
     <td><span style="font-size:12px;color:var(--muted)">${s.queue_channel_id||'—'}</span></td>
     <td><span style="font-size:12px;color:var(--muted)">${s.results_channel_id||'—'}</span></td>
-    <td><button class="btn btn-ghost btn-xs" onclick="openServerModal(${s.guild_id},'${esc(s.name)}',${s.queue_channel_id||"''"},${s.results_channel_id||"''"})">Configure</button></td>
+    <td><div style="display:flex;gap:5px"><button class="btn btn-ghost btn-xs" onclick="openServerModal(${s.guild_id},'${esc(s.name)}',${s.queue_channel_id||"''"},${s.results_channel_id||"''"})">Channels</button><button class="btn btn-xs" style="background:rgba(124,58,237,.12);color:#c084fc;border:1px solid rgba(124,58,237,.25)" onclick="openSettingsModal(${s.guild_id},'${esc(s.name)}')">Settings</button></div></td>
   </tr>`).join('');
 }
 function openServerModal(id,name,qch,rch){
@@ -1209,6 +1387,80 @@ async function deleteMode(id){
   const r=await api(`/api/dash/modes/${id}`,{method:'DELETE'});
   if(r.ok){toast('Mode removed');loadModes()}else toast(r.error||'Error',false);
 }
+// ── Server Settings ──
+async function openSettingsModal(id,name){
+  document.getElementById('sm-server-id').value=id;
+  document.getElementById('sm-name').textContent=name;
+  const d=await api(`/api/dash/server/${id}/settings`);
+  document.getElementById('sm-score-mode').value=d.score_mode?1:0;
+  document.getElementById('sm-require-evidence').value=d.require_evidence?1:0;
+  document.getElementById('sm-rounds').value=d.rounds_per_match||'';
+  document.getElementById('sm-cooldown').value=d.rematch_cooldown!=null?d.rematch_cooldown:'';
+  document.getElementById('sm-anon').value=d.anonymous_queue?1:0;
+  document.getElementById('sm-server-premium').value=d.server_premium?1:0;
+  document.getElementById('sm-category').value=d.match_category_id||'';
+  document.getElementById('sm-update-ch').value=d.update_channel_id||'';
+  document.getElementById('settings-modal').classList.add('open');
+}
+async function saveServerSettings(){
+  const id=document.getElementById('sm-server-id').value;
+  const payload={
+    score_mode:parseInt(document.getElementById('sm-score-mode').value),
+    require_evidence:parseInt(document.getElementById('sm-require-evidence').value),
+    rounds_per_match:document.getElementById('sm-rounds').value||null,
+    rematch_cooldown:document.getElementById('sm-cooldown').value||null,
+    anonymous_queue:parseInt(document.getElementById('sm-anon').value),
+    server_premium:parseInt(document.getElementById('sm-server-premium').value),
+    match_category_id:document.getElementById('sm-category').value||null,
+    update_channel_id:document.getElementById('sm-update-ch').value||null,
+  };
+  const r=await api(`/api/dash/server/${id}/settings`,{method:'POST',body:JSON.stringify(payload)});
+  if(r.ok){toast('Settings saved');closeModal()}else toast('Error saving settings',false);
+}
+
+// ── Games Tab ──
+let _gamesList=[];
+let _modesList=[];
+async function initGamesTab(){
+  const servers=await api('/api/dash/servers');
+  const sel=document.getElementById('games-server-sel');
+  const cur=sel.value;
+  sel.innerHTML='<option value="">— choose a server —</option>'+
+    (Array.isArray(servers)?servers.map(s=>`<option value="${s.guild_id}">${esc(s.name)}</option>`).join(''):'');
+  if(cur)sel.value=cur;
+  const [games,modes]=await Promise.all([api('/api/games'),api('/api/dash/modes')]);
+  _gamesList=Array.isArray(games)?games:[];
+  _modesList=Array.isArray(modes)?modes.filter(m=>m.enabled):[];
+  document.getElementById('ga-game').innerHTML=_gamesList.map(g=>`<option value="${g.id}">${esc(g.name)} (${g.map_count} maps)</option>`).join('');
+  document.getElementById('ga-mode').innerHTML=_modesList.map(m=>`<option value="${m.mode_id}">${esc(m.display_name)}</option>`).join('');
+  if(sel.value)loadGames(sel.value);
+}
+async function loadGames(serverId){
+  const tb=document.getElementById('games-body');
+  if(!serverId){tb.innerHTML='<tr><td colspan="4"><div class="empty">Select a server above.</div></td></tr>';return}
+  const d=await api(`/api/dash/server/${serverId}/games`);
+  if(!d||!d.length){tb.innerHTML='<tr><td colspan="4"><div class="empty">No games assigned. Add one above.</div></td></tr>';return}
+  tb.innerHTML=d.map(g=>`<tr>
+    <td><code class="pill">${esc(g.queue_mode)}</code></td>
+    <td style="font-weight:600">${esc(g.game_name)}</td>
+    <td style="color:var(--muted);font-size:12px">${g.map_count} maps</td>
+    <td><button class="btn btn-danger btn-xs" onclick="removeGame(${serverId},'${esc(g.queue_mode)}')">Remove</button></td>
+  </tr>`).join('');
+}
+async function addGame(){
+  const serverId=document.getElementById('games-server-sel').value;
+  if(!serverId)return toast('Select a server first',false);
+  const mode=document.getElementById('ga-mode').value;
+  const game_id=document.getElementById('ga-game').value;
+  const r=await api(`/api/dash/server/${serverId}/games`,{method:'POST',body:JSON.stringify({queue_mode:mode,game_id})});
+  if(r.ok){toast('Game assigned');loadGames(serverId)}else toast(r.error||'Error',false);
+}
+async function removeGame(serverId,mode){
+  if(!confirm(`Remove game assignment for mode "${mode}"?`))return;
+  const r=await api(`/api/dash/server/${serverId}/games/${mode}`,{method:'DELETE'});
+  if(r.ok){toast('Assignment removed');loadGames(serverId)}else toast('Error',false);
+}
+
 // Init
 loadOverview();
 </script>
