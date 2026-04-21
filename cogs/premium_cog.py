@@ -2,7 +2,7 @@ import httpx
 import discord
 from discord import app_commands
 from discord.ext import commands
-from config import GUMROAD_PRODUCT_ID, PREMIUM_URL, PREMIUM_PRICE
+from config import GUMROAD_PRODUCT_ID, PREMIUM_URL, PREMIUM_PRICE, ADMIN_USER_ID
 import database as db
 
 
@@ -97,3 +97,28 @@ class PremiumCog(commands.Cog):
             color=discord.Color.purple(),
         )
         await interaction.followup.send(embed=embed, ephemeral=True)
+
+    @app_commands.command(name="premiumgive", description="Grant this server free premium (owner only)")
+    @app_commands.describe(months="Number of months to grant (default: 1)")
+    async def premium_give(self, interaction: discord.Interaction, months: int = 1):
+        if interaction.user.id != ADMIN_USER_ID:
+            await interaction.response.send_message("Not authorised.", ephemeral=True)
+            return
+        if not interaction.guild:
+            await interaction.response.send_message("Use this command inside a server.", ephemeral=True)
+            return
+        months = max(1, min(months, 120))
+        await db.grant_server_premium(interaction.guild.id, interaction.user.id, months)
+        grant = await db.get_server_premium_grant(interaction.guild.id)
+        expires = grant["expires_at"][:10] if grant else "unknown"
+        embed = discord.Embed(
+            title="⭐ Server Premium Granted",
+            description=(
+                f"**{interaction.guild.name}** now has **{months} month{'s' if months != 1 else ''}** "
+                f"of server premium.\n\n"
+                f"**Expires:** {expires}\n\n"
+                "Unlocks: up to 3 game queues, custom rank names, and more."
+            ),
+            color=discord.Color.from_str("#7c3aed"),
+        )
+        await interaction.response.send_message(embed=embed)

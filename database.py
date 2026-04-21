@@ -114,6 +114,21 @@ async def init_db():
                 map_choice  TEXT NOT NULL,
                 PRIMARY KEY (match_id, player_id)
             );
+            CREATE TABLE IF NOT EXISTS server_premium_grants (
+                id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                server_id   INTEGER NOT NULL,
+                granted_by  INTEGER NOT NULL,
+                granted_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                expires_at  TIMESTAMP NOT NULL,
+                months      INTEGER DEFAULT 1
+            );
+            CREATE TABLE IF NOT EXISTS server_ranks (
+                server_id   INTEGER NOT NULL,
+                min_elo     INTEGER NOT NULL,
+                name        TEXT NOT NULL,
+                emoji       TEXT DEFAULT '',
+                PRIMARY KEY (server_id, min_elo)
+            );
         """)
 
         # Schema migrations — safe to run repeatedly
@@ -670,11 +685,41 @@ async def get_server_queue_games(server_id: int) -> list[dict]:
 
 async def is_server_premium(server_id: int) -> bool:
     async with aiosqlite.connect(DB_PATH) as db:
+        # Check manual flag
         async with db.execute(
             "SELECT server_premium FROM server_config WHERE server_id=?", (server_id,)
         ) as cur:
             row = await cur.fetchone()
-            return bool(row and row[0])
+            if row and row[0]:
+                return True
+        # Check active timed grant
+        async with db.execute(
+            "SELECT 1 FROM server_premium_grants WHERE server_id=? AND expires_at > CURRENT_TIMESTAMP LIMIT 1",
+            (server_id,)
+        ) as cur:
+            return await cur.fetchone() is not None
+
+
+async def grant_server_premium(server_id: int, granted_by: int, months: int = 1):
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute(
+            """INSERT INTO server_premium_grants (server_id, granted_by, months, expires_at)
+               VALUES (?, ?, ?, datetime('now', '+' || ? || ' months'))""",
+            (server_id, granted_by, months, months),
+        )
+        await db.commit()
+
+
+async def get_server_premium_grant(server_id: int) -> dict | None:
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        async with db.execute(
+            """SELECT * FROM server_premium_grants WHERE server_id=? AND expires_at > CURRENT_TIMESTAMP
+               ORDER BY expires_at DESC LIMIT 1""",
+            (server_id,)
+        ) as cur:
+            row = await cur.fetchone()
+            return dict(row) if row else None
 
 
 # ── Map votes ─────────────────────────────────────────────────────────────────
@@ -747,6 +792,48 @@ async def check_rematch_cooldown(p1_id: int, p2_id: int, cooldown_seconds: int) 
         return elapsed >= cooldown_seconds
     except Exception:
         return True
+
+
+async def get_server_ranks(server_id: int) -> list[dict]:
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        async with db.execute(
+            "SELECT * FROM server_ranks WHERE server_id=? ORDER BY min_elo DESC", (server_id,)
+        ) as cur:
+            return [dict(r) for r in await cur.fetchall()]
+
+
+async def add_server_rank(server_id: int, min_elo: int, name: str, emoji: str = ""):
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute(
+            "INSERT OR REPLACE INTO server_ranks (server_id, min_elo, name, emoji) VALUES (?,?,?,?)",
+            (server_id, min_elo, name, emoji),
+        )
+        await db.commit()
+
+
+async def remove_server_rank(server_id: int, min_elo: int):
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute(
+            "DELETE FROM server_ranks WHERE server_id=? AND min_elo=?", (server_id, min_elo)
+        )
+        await db.commit()
+
+
+async def get_rank_for_server(elo: int, server_id: int) -> str:
+    """Returns server-custom rank name if set, otherwise falls back to global tiers."""
+    from config import get_rank
+    ranks = await get_server_ranks(server_id)
+    if not ranks:
+        return get_rank(elo)
+    for r in ranks:  # already sorted DESC by min_elo
+        if elo >= r["min_elo"]:
+            prefix = r["emoji"] + " " if r["emoji"] else ""
+            return prefix + r["name"]
+    # Below all tiers — use lowest tier
+    lowest = ranks[-1]
+    prefix = lowest["emoji"] + " " if lowest["emoji"] else ""
+    return prefix + lowest["name"]
 
 
 async def get_server_stats(server_id: int) -> dict:

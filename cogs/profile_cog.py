@@ -20,7 +20,8 @@ class ProfileCog(commands.Cog):
             return
 
         premium = await db.is_premium(target.id)
-        rank = get_rank(player["elo"])
+        server_id = interaction.guild_id or 0
+        rank = await db.get_rank_for_server(player["elo"], server_id)
         total = player["wins"] + player["losses"]
         winrate = f"{(player['wins'] / total * 100):.1f}%" if total > 0 else "N/A"
         season_history = await db.get_season_history(target.id)
@@ -56,12 +57,13 @@ class ProfileCog(commands.Cog):
             await interaction.response.send_message("No ranked players yet.", ephemeral=True)
             return
 
+        server_id = interaction.guild_id or 0
         medals = {1: "🥇", 2: "🥈", 3: "🥉"}
         lines = []
         for i, row in enumerate(rows, 1):
             prefix = medals.get(i, f"`{i}.`")
             star = "⭐ " if row.get("is_premium") else ""
-            rank = get_rank(row["elo"])
+            rank = await db.get_rank_for_server(row["elo"], server_id)
             lines.append(
                 f"{prefix} {star}**{row['username']}** — {rank} · ELO {row['elo']} ({row['wins']}W/{row['losses']}L)"
             )
