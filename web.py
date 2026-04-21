@@ -498,7 +498,7 @@ async def console_messages(guild_id: int, channel_id: int, request: Request, lim
     async for msg in channel.history(**kwargs):
         result.append({
             "id": str(msg.id),
-            "content": msg.content or "",
+            "content": msg.clean_content or "",
             "author": {"id": str(msg.author.id), "name": msg.author.display_name,
                        "avatar": str(msg.author.display_avatar.url), "bot": msg.author.bot},
             "timestamp": msg.created_at.isoformat(),
