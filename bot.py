@@ -2,7 +2,7 @@ import os
 import asyncio
 import discord
 from discord.ext import commands
-from config import DISCORD_TOKEN, BOT_INVITE_URL, SUPPORT_SERVER, DASHBOARD_URL, PREMIUM_URL, PREMIUM_PRICE
+from config import DISCORD_TOKEN, BOT_INVITE_URL, SUPPORT_SERVER, DASHBOARD_URL, PREMIUM_URL, PREMIUM_PRICE, ADMIN_USER_ID
 import database as db
 import matchmaking
 from web import app as web_app
@@ -15,6 +15,7 @@ from cogs.premium_cog import PremiumCog
 from cogs.season_cog import SeasonCog
 from cogs.history_cog import HistoryCog
 from cogs.update_cog import UpdateCog
+from cogs.log_cog import LogCog
 
 
 class MatchmakingBot(commands.Bot):
@@ -35,6 +36,7 @@ class MatchmakingBot(commands.Bot):
         season_cog = SeasonCog(self)
         history_cog = HistoryCog(self)
         update_cog = UpdateCog(self)
+        log_cog = LogCog(self)
 
         await self.add_cog(queue_cog)
         await self.add_cog(match_cog)
@@ -45,6 +47,7 @@ class MatchmakingBot(commands.Bot):
         await self.add_cog(season_cog)
         await self.add_cog(history_cog)
         await self.add_cog(update_cog)
+        await self.add_cog(log_cog)
 
         self.tree.add_command(admin_cog.admin_group)
         self.tree.add_command(admin_cog.admin_rank_group)
