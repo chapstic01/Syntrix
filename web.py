@@ -644,7 +644,7 @@ if(msg&&msg.trim()){err.textContent=msg;err.style.display='block'}
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# DASHBOARD HTML
+# DASHBOARD HTML  (Aegixa-inspired: horizontal tabs, inline cards, toast UX)
 # ══════════════════════════════════════════════════════════════════════════════
 
 DASHBOARD_HTML = """<!DOCTYPE html>
@@ -654,209 +654,311 @@ DASHBOARD_HTML = """<!DOCTYPE html>
 <title>Syntrix Dashboard</title>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet"/>
 <style>
-:root{--bg:#07070f;--card:#0e0e1c;--card2:#13131f;--border:rgba(139,92,246,.15);--border-h:rgba(139,92,246,.4);--accent:#7c3aed;--accent2:#a855f7;--text:#f1f5f9;--muted:#64748b;--sub:#94a3b8;--green:#10b981;--red:#ef4444;--r:12px}
+:root{
+  --bg:#1e1f22;--bg2:#2b2d31;--bg3:#313338;
+  --accent:#7c3aed;--accent2:#a855f7;--accent-glow:rgba(124,58,237,.25);
+  --border:#3f4248;--border-h:rgba(124,58,237,.5);
+  --text:#dbdee1;--text2:#b5bac1;--muted:#80848e;
+  --green:#23a55a;--green-bg:rgba(35,165,90,.12);--green-border:rgba(35,165,90,.3);
+  --red:#f23f43;--red-bg:rgba(242,63,67,.1);--red-border:rgba(242,63,67,.25);
+  --gold:#f0b232;
+  --r:8px;--r2:12px;
+}
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 body{font-family:Inter,sans-serif;background:var(--bg);color:var(--text);min-height:100vh;display:flex;flex-direction:column}
-nav{background:var(--card);border-bottom:1px solid var(--border);padding:0 24px;height:60px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;position:sticky;top:0;z-index:100}
-.logo{font-size:18px;font-weight:900;letter-spacing:3px;background:linear-gradient(135deg,#a855f7,#7c3aed);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
-.logo span{font-size:12px;background:rgba(124,58,237,.2);border:1px solid var(--border);padding:2px 8px;border-radius:4px;-webkit-text-fill-color:#a855f7;letter-spacing:1px;margin-left:8px;font-weight:600}
-.nav-right{display:flex;align-items:center;gap:8px}
-.nb{color:var(--sub);text-decoration:none;font-size:13px;font-weight:500;padding:7px 14px;border-radius:8px;transition:all .2s;border:none;background:none;cursor:pointer;font-family:inherit}
-.nb:hover,.nb.active{color:var(--text);background:rgba(255,255,255,.06)}
-.nb.active{color:var(--accent2)}
-.logout{color:#f87171!important}
-.layout{display:flex;flex:1;min-height:0}
-.sidebar{width:220px;background:var(--card);border-right:1px solid var(--border);padding:20px 12px;flex-shrink:0}
-.sb-label{font-size:10px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:1px;padding:0 10px;margin-bottom:8px;margin-top:20px}
-.sb-label:first-child{margin-top:0}
-.sbtn{display:flex;align-items:center;gap:10px;width:100%;padding:9px 12px;border-radius:8px;border:none;background:none;color:var(--sub);font-size:13px;font-weight:500;cursor:pointer;font-family:inherit;transition:all .2s;text-align:left}
-.sbtn:hover{background:rgba(255,255,255,.05);color:var(--text)}
-.sbtn.active{background:rgba(124,58,237,.15);color:var(--accent2);border:1px solid rgba(124,58,237,.2)}
-.sbtn .ico{font-size:16px;width:20px;text-align:center}
-.main{flex:1;padding:28px 32px;overflow-y:auto}
-h2{font-size:20px;font-weight:700;margin-bottom:20px}
-.tab{display:none}.tab.active{display:block}
-.grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:24px}
-.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:24px}
-.kv{background:var(--card);border:1px solid var(--border);border-radius:var(--r);padding:20px}
-.kv-val{font-size:32px;font-weight:800;background:linear-gradient(135deg,#fff,var(--accent2));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
-.kv-lbl{font-size:12px;color:var(--muted);margin-top:4px;text-transform:uppercase;letter-spacing:.5px}
-.card{background:var(--card);border:1px solid var(--border);border-radius:var(--r);overflow:hidden;margin-bottom:20px}
-.card-head{padding:16px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
-.card-title{font-size:14px;font-weight:600}
+
+/* ── Navbar ── */
+nav{
+  background:var(--bg2);border-bottom:1px solid var(--border);
+  padding:0 28px;height:56px;display:flex;align-items:center;
+  justify-content:space-between;flex-shrink:0;position:sticky;top:0;z-index:200;
+}
+.logo{
+  font-size:15px;font-weight:900;letter-spacing:4px;
+  background:linear-gradient(135deg,#c084fc,#7c3aed);
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;
+}
+.logo-badge{
+  font-size:10px;font-weight:700;letter-spacing:1.5px;
+  background:rgba(124,58,237,.18);border:1px solid rgba(124,58,237,.35);
+  color:#a78bfa;padding:2px 7px;border-radius:4px;
+  -webkit-text-fill-color:#a78bfa;margin-left:10px;
+}
+.nav-actions{display:flex;align-items:center;gap:6px}
+.na{
+  color:var(--text2);text-decoration:none;font-size:13px;font-weight:500;
+  padding:6px 12px;border-radius:var(--r);transition:all .15s;
+  border:none;background:none;cursor:pointer;font-family:inherit;
+}
+.na:hover{background:rgba(255,255,255,.06);color:var(--text)}
+.na-danger{color:#f87171}
+.na-danger:hover{background:var(--red-bg)!important;color:var(--red)}
+
+/* ── Tab bar ── */
+.tabbar{
+  background:var(--bg2);border-bottom:1px solid var(--border);
+  padding:0 28px;display:flex;gap:2px;flex-shrink:0;
+}
+.tb{
+  display:flex;align-items:center;gap:7px;
+  padding:0 14px;height:44px;font-size:13px;font-weight:500;
+  color:var(--muted);border:none;background:none;cursor:pointer;
+  font-family:inherit;position:relative;transition:color .15s;white-space:nowrap;
+}
+.tb:hover{color:var(--text2)}
+.tb.active{color:var(--text)}
+.tb.active::after{
+  content:'';position:absolute;bottom:0;left:0;right:0;height:2px;
+  background:linear-gradient(90deg,var(--accent),var(--accent2));border-radius:2px 2px 0 0;
+}
+.tb-ico{font-size:14px}
+
+/* ── Main ── */
+.main{flex:1;padding:28px 32px;overflow-y:auto;max-width:1200px;width:100%}
+.page{display:none}.page.active{display:block}
+h2{font-size:17px;font-weight:700;color:var(--text);margin-bottom:20px;letter-spacing:-.2px}
+.page-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px}
+.page-head h2{margin-bottom:0}
+
+/* ── Stats grid ── */
+.stats-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:24px}
+.stat-card{
+  background:var(--bg2);border:1px solid var(--border);border-radius:var(--r2);
+  padding:18px 20px;transition:border-color .2s;
+}
+.stat-card:hover{border-color:rgba(124,58,237,.35)}
+.stat-val{font-size:28px;font-weight:800;color:var(--text);line-height:1}
+.stat-val.accent{background:linear-gradient(135deg,var(--text),var(--accent2));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.stat-lbl{font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.7px;margin-top:6px}
+
+/* ── Cards ── */
+.card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--r2);overflow:hidden;margin-bottom:16px}
+.card-head{
+  padding:14px 20px;border-bottom:1px solid var(--border);
+  display:flex;align-items:center;justify-content:space-between;
+}
+.card-title{font-size:13px;font-weight:600;color:var(--text)}
+.card-body{padding:16px 20px}
+
+/* ── Table ── */
 table{width:100%;border-collapse:collapse}
-th{font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.8px;padding:12px 16px;text-align:left;border-bottom:1px solid var(--border);background:rgba(255,255,255,.02)}
-td{padding:12px 16px;font-size:13px;border-bottom:1px solid rgba(255,255,255,.04)}
+th{
+  font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;
+  letter-spacing:.8px;padding:10px 16px;text-align:left;
+  border-bottom:1px solid var(--border);background:rgba(0,0,0,.12);
+}
+td{padding:11px 16px;font-size:13px;border-bottom:1px solid rgba(255,255,255,.04);color:var(--text)}
 tr:last-child td{border-bottom:none}
-tr:hover td{background:rgba(255,255,255,.02)}
-.tag{display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:600;padding:2px 8px;border-radius:4px}
-.tag-green{background:rgba(16,185,129,.12);color:var(--green);border:1px solid rgba(16,185,129,.25)}
-.tag-red{background:rgba(239,68,68,.1);color:#f87171;border:1px solid rgba(239,68,68,.2)}
-.tag-purple{background:rgba(124,58,237,.12);color:var(--accent2);border:1px solid var(--border)}
-input,select{background:var(--card2);border:1px solid var(--border);border-radius:8px;padding:8px 12px;font-size:13px;color:var(--text);font-family:inherit;outline:none;transition:border-color .2s}
-input:focus,select:focus{border-color:var(--border-h)}
-.btn{display:inline-flex;align-items:center;gap:6px;padding:8px 16px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;border:none;transition:all .2s}
-.btn-primary{background:linear-gradient(135deg,var(--accent),var(--accent2));color:#fff}
-.btn-primary:hover{opacity:.9;transform:translateY(-1px)}
-.btn-ghost{background:rgba(255,255,255,.05);color:var(--sub);border:1px solid var(--border)}
-.btn-ghost:hover{background:rgba(255,255,255,.08);color:var(--text)}
-.btn-danger{background:rgba(239,68,68,.1);color:#f87171;border:1px solid rgba(239,68,68,.2)}
-.btn-danger:hover{background:rgba(239,68,68,.2)}
-.btn-sm{padding:5px 10px;font-size:12px}
-.form-row{display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;margin-bottom:20px}
-.form-group{display:flex;flex-direction:column;gap:6px}
-.form-group label{font-size:12px;color:var(--sub);font-weight:500}
-.search-row{display:flex;gap:10px;margin-bottom:16px}
-.search-row input{flex:1}
-.empty{padding:40px;text-align:center;color:var(--muted);font-size:13px}
-.toast{position:fixed;bottom:24px;right:24px;background:#1a1a2e;border:1px solid var(--border-h);border-radius:10px;padding:12px 20px;font-size:13px;font-weight:500;z-index:9999;transform:translateY(80px);opacity:0;transition:all .3s}
+tr:hover td{background:rgba(255,255,255,.025)}
+.cell-sub{font-size:11px;color:var(--muted);margin-top:2px}
+
+/* ── Inline form row (inside cards) ── */
+.inline-form{display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;padding:14px 20px;border-top:1px solid var(--border)}
+.fg{display:flex;flex-direction:column;gap:5px}
+.fg label{font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.5px}
+
+/* ── Inputs ── */
+input,select{
+  background:var(--bg3);border:1px solid var(--border);border-radius:var(--r);
+  padding:7px 11px;font-size:13px;color:var(--text);font-family:inherit;
+  outline:none;transition:border-color .15s;
+}
+input::placeholder{color:var(--muted)}
+input:focus,select:focus{border-color:var(--border-h);box-shadow:0 0 0 3px var(--accent-glow)}
+.search-bar{display:flex;gap:10px;margin-bottom:14px}
+.search-bar input{flex:1}
+
+/* ── Buttons ── */
+.btn{
+  display:inline-flex;align-items:center;gap:6px;
+  padding:7px 14px;border-radius:var(--r);font-size:13px;font-weight:600;
+  cursor:pointer;font-family:inherit;border:none;transition:all .15s;white-space:nowrap;
+}
+.btn-primary{background:linear-gradient(135deg,var(--accent),var(--accent2));color:#fff;box-shadow:0 2px 8px var(--accent-glow)}
+.btn-primary:hover{opacity:.88;transform:translateY(-1px)}
+.btn-ghost{background:rgba(255,255,255,.05);color:var(--text2);border:1px solid var(--border)}
+.btn-ghost:hover{background:rgba(255,255,255,.09);color:var(--text)}
+.btn-danger{background:var(--red-bg);color:var(--red);border:1px solid var(--red-border)}
+.btn-danger:hover{background:rgba(242,63,67,.18)}
+.btn-sm{padding:4px 10px;font-size:12px}
+.btn-xs{padding:3px 8px;font-size:11px}
+
+/* ── Tags ── */
+.tag{display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:700;padding:2px 7px;border-radius:4px}
+.tag-green{background:var(--green-bg);color:var(--green);border:1px solid var(--green-border)}
+.tag-red{background:var(--red-bg);color:var(--red);border:1px solid var(--red-border)}
+.tag-purple{background:rgba(124,58,237,.14);color:#c084fc;border:1px solid rgba(124,58,237,.3)}
+.tag-gold{background:rgba(240,178,50,.12);color:var(--gold);border:1px solid rgba(240,178,50,.3)}
+
+/* ── Empty state ── */
+.empty{padding:40px 16px;text-align:center;color:var(--muted);font-size:13px}
+
+/* ── Toast ── */
+.toast{
+  position:fixed;bottom:24px;right:24px;
+  background:var(--bg2);border:1px solid var(--border);
+  border-radius:var(--r2);padding:11px 18px;font-size:13px;font-weight:500;
+  z-index:9999;transform:translateY(80px);opacity:0;transition:all .25s cubic-bezier(.34,1.56,.64,1);
+  display:flex;align-items:center;gap:8px;min-width:200px;
+}
 .toast.show{transform:translateY(0);opacity:1}
-.toast.ok{border-color:rgba(16,185,129,.4);color:var(--green)}
-.toast.err{border-color:rgba(239,68,68,.3);color:#f87171}
-.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:500;display:none;align-items:center;justify-content:center}
+.toast.ok{border-color:var(--green-border);color:var(--green)}
+.toast.err{border-color:var(--red-border);color:var(--red)}
+
+/* ── Modal ── */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:500;display:none;align-items:center;justify-content:center;backdrop-filter:blur(2px)}
 .modal-overlay.open{display:flex}
-.modal{background:var(--card);border:1px solid var(--border-h);border-radius:16px;padding:28px;min-width:360px;max-width:480px;width:90%}
-.modal h3{font-size:16px;font-weight:700;margin-bottom:20px}
-.modal .form-group{margin-bottom:14px;display:flex;flex-direction:column;gap:6px;width:100%}
-.modal label{font-size:12px;color:var(--sub);font-weight:500}
-.modal input,.modal select{width:100%}
-.modal-actions{display:flex;gap:10px;justify-content:flex-end;margin-top:20px}
+.modal{background:var(--bg2);border:1px solid var(--border-h);border-radius:16px;padding:28px;min-width:360px;max-width:460px;width:92%;box-shadow:0 20px 60px rgba(0,0,0,.5)}
+.modal-title{font-size:15px;font-weight:700;color:var(--text);margin-bottom:20px}
+.modal .fg{margin-bottom:14px;width:100%}
+.modal .fg input,.modal .fg select{width:100%}
+.modal-actions{display:flex;gap:10px;justify-content:flex-end;margin-top:20px;padding-top:16px;border-top:1px solid var(--border)}
+
+/* ── Code pill ── */
+code.pill{background:rgba(124,58,237,.12);color:#c084fc;padding:2px 7px;border-radius:4px;font-size:12px;font-family:monospace}
 </style>
 </head>
 <body>
+
+<!-- Navbar -->
 <nav>
-  <div style="display:flex;align-items:center;gap:16px">
-    <div class="logo">SYNTRIX <span>DASHBOARD</span></div>
+  <div style="display:flex;align-items:center">
+    <span class="logo">SYNTRIX</span>
+    <span class="logo-badge">DASHBOARD</span>
   </div>
-  <div class="nav-right">
-    <a href="/" class="nb" target="_blank">↗ Public Site</a>
-    <a href="/dashboard/logout" class="nb logout">Sign Out</a>
+  <div class="nav-actions">
+    <a href="/" class="na" target="_blank">↗ Public Site</a>
+    <a href="/dashboard/logout" class="na na-danger">Sign Out</a>
   </div>
 </nav>
 
-<div class="layout">
-  <div class="sidebar">
-    <div class="sb-label">Overview</div>
-    <button class="sbtn active" onclick="showTab('overview')"><span class="ico">🏠</span>Overview</button>
-    <div class="sb-label">Management</div>
-    <button class="sbtn" onclick="showTab('servers')"><span class="ico">🖥️</span>Servers</button>
-    <button class="sbtn" onclick="showTab('players')"><span class="ico">👥</span>Players</button>
-    <button class="sbtn" onclick="showTab('premium')"><span class="ico">⭐</span>Premium</button>
-    <div class="sb-label">System</div>
-    <button class="sbtn" onclick="showTab('seasons')"><span class="ico">🏆</span>Seasons</button>
-    <button class="sbtn" onclick="showTab('modes')"><span class="ico">🎮</span>Queue Modes</button>
-  </div>
-
-  <div class="main">
-
-    <!-- OVERVIEW -->
-    <div class="tab active" id="tab-overview">
-      <h2>Overview</h2>
-      <div class="grid3">
-        <div class="kv"><div class="kv-val" id="ov-players">—</div><div class="kv-lbl">Total Players</div></div>
-        <div class="kv"><div class="kv-val" id="ov-matches">—</div><div class="kv-lbl">Matches Completed</div></div>
-        <div class="kv"><div class="kv-val" id="ov-queue">—</div><div class="kv-lbl">In Queue</div></div>
-      </div>
-      <div class="grid2">
-        <div class="kv"><div class="kv-val" id="ov-servers">—</div><div class="kv-lbl">Connected Servers</div></div>
-        <div class="kv" id="ov-season-card"><div class="kv-val" id="ov-season" style="font-size:18px">—</div><div class="kv-lbl">Active Season</div></div>
-      </div>
-    </div>
-
-    <!-- SERVERS -->
-    <div class="tab" id="tab-servers">
-      <h2>Servers</h2>
-      <div class="card">
-        <div class="card-head"><div class="card-title">Connected Servers</div><button class="btn btn-ghost btn-sm" onclick="loadServers()">↻ Refresh</button></div>
-        <table>
-          <thead><tr><th>Server</th><th>Members</th><th>Queue Channel ID</th><th>Results Channel ID</th><th>Actions</th></tr></thead>
-          <tbody id="servers-body"><tr><td colspan="5"><div class="empty">Loading…</div></td></tr></tbody>
-        </table>
-      </div>
-    </div>
-
-    <!-- PLAYERS -->
-    <div class="tab" id="tab-players">
-      <h2>Players</h2>
-      <div class="search-row">
-        <input id="player-search" placeholder="Search by username…" oninput="searchPlayers()"/>
-      </div>
-      <div class="card">
-        <table>
-          <thead><tr><th>Player</th><th>ELO</th><th>Rank</th><th>Record</th><th>Premium</th><th>Actions</th></tr></thead>
-          <tbody id="players-body"><tr><td colspan="6"><div class="empty">Loading…</div></td></tr></tbody>
-        </table>
-      </div>
-    </div>
-
-    <!-- PREMIUM -->
-    <div class="tab" id="tab-premium">
-      <h2>Premium Members</h2>
-      <div class="card">
-        <div class="card-head"><div class="card-title">Active Premium Users</div><button class="btn btn-ghost btn-sm" onclick="loadPremium()">↻ Refresh</button></div>
-        <table>
-          <thead><tr><th>Player</th><th>ELO</th><th>Activated</th><th>Source</th><th>Actions</th></tr></thead>
-          <tbody id="premium-body"><tr><td colspan="5"><div class="empty">Loading…</div></td></tr></tbody>
-        </table>
-      </div>
-    </div>
-
-    <!-- SEASONS -->
-    <div class="tab" id="tab-seasons">
-      <h2>Seasons</h2>
-      <div class="card" style="margin-bottom:20px">
-        <div class="card-head"><div class="card-title">Start New Season</div></div>
-        <div style="padding:16px 20px;display:flex;gap:12px;align-items:flex-end">
-          <div class="form-group"><label>Season Name</label><input id="season-name" placeholder="e.g. Season 1"/></div>
-          <button class="btn btn-primary" onclick="startSeason()">Start Season</button>
-        </div>
-      </div>
-      <div class="card">
-        <div class="card-head">
-          <div class="card-title">Season History</div>
-          <button class="btn btn-danger btn-sm" onclick="endSeason()">End Active Season</button>
-        </div>
-        <table>
-          <thead><tr><th>ID</th><th>Name</th><th>Status</th><th>Started</th><th>Ended</th></tr></thead>
-          <tbody id="seasons-body"><tr><td colspan="5"><div class="empty">Loading…</div></td></tr></tbody>
-        </table>
-      </div>
-    </div>
-
-    <!-- MODES -->
-    <div class="tab" id="tab-modes">
-      <h2>Queue Modes</h2>
-      <div class="card" style="margin-bottom:20px">
-        <div class="card-head"><div class="card-title">Add New Mode</div></div>
-        <div style="padding:16px 20px;display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap">
-          <div class="form-group"><label>Mode ID</label><input id="mode-id" placeholder="e.g. 2v2"/></div>
-          <div class="form-group"><label>Display Name</label><input id="mode-name" placeholder="e.g. 2v2 Teams"/></div>
-          <div class="form-group"><label>Description</label><input id="mode-desc" placeholder="Optional description"/></div>
-          <button class="btn btn-primary" onclick="addMode()">Add Mode</button>
-        </div>
-      </div>
-      <div class="card">
-        <div class="card-head"><div class="card-title">Active Modes</div><button class="btn btn-ghost btn-sm" onclick="loadModes()">↻ Refresh</button></div>
-        <table>
-          <thead><tr><th>Mode ID</th><th>Display Name</th><th>Description</th><th>Status</th><th>Actions</th></tr></thead>
-          <tbody id="modes-body"><tr><td colspan="5"><div class="empty">Loading…</div></td></tr></tbody>
-        </table>
-      </div>
-    </div>
-
-  </div>
+<!-- Tab bar -->
+<div class="tabbar">
+  <button class="tb active" data-tab="overview" onclick="showTab('overview',this)"><span class="tb-ico">🏠</span>Overview</button>
+  <button class="tb" data-tab="servers" onclick="showTab('servers',this)"><span class="tb-ico">🖥️</span>Servers</button>
+  <button class="tb" data-tab="players" onclick="showTab('players',this)"><span class="tb-ico">👥</span>Players</button>
+  <button class="tb" data-tab="premium" onclick="showTab('premium',this)"><span class="tb-ico">⭐</span>Premium</button>
+  <button class="tb" data-tab="seasons" onclick="showTab('seasons',this)"><span class="tb-ico">🏆</span>Seasons</button>
+  <button class="tb" data-tab="modes" onclick="showTab('modes',this)"><span class="tb-ico">🎮</span>Queue Modes</button>
 </div>
 
-<!-- Server Edit Modal -->
+<div class="main">
+
+  <!-- OVERVIEW -->
+  <div class="page active" id="page-overview">
+    <h2>Overview</h2>
+    <div class="stats-grid">
+      <div class="stat-card"><div class="stat-val accent" id="ov-players">—</div><div class="stat-lbl">Total Players</div></div>
+      <div class="stat-card"><div class="stat-val accent" id="ov-matches">—</div><div class="stat-lbl">Matches Played</div></div>
+      <div class="stat-card"><div class="stat-val accent" id="ov-queue">—</div><div class="stat-lbl">In Queue</div></div>
+      <div class="stat-card"><div class="stat-val accent" id="ov-servers">—</div><div class="stat-lbl">Servers</div></div>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">Active Season</div></div>
+      <div class="card-body"><div id="ov-season" style="font-size:15px;font-weight:600">None</div></div>
+    </div>
+  </div>
+
+  <!-- SERVERS -->
+  <div class="page" id="page-servers">
+    <div class="page-head">
+      <h2>Servers</h2>
+      <button class="btn btn-ghost btn-sm" onclick="loadServers()">↻ Refresh</button>
+    </div>
+    <div class="card">
+      <table>
+        <thead><tr><th>Server</th><th>Members</th><th>Queue Channel</th><th>Results Channel</th><th></th></tr></thead>
+        <tbody id="servers-body"><tr><td colspan="5"><div class="empty">Loading…</div></td></tr></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- PLAYERS -->
+  <div class="page" id="page-players">
+    <div class="page-head"><h2>Players</h2></div>
+    <div class="search-bar">
+      <input id="player-search" placeholder="Search by username…" oninput="searchPlayers()"/>
+    </div>
+    <div class="card">
+      <table>
+        <thead><tr><th>Player</th><th>ELO</th><th>Rank</th><th>Record</th><th>Premium</th><th></th></tr></thead>
+        <tbody id="players-body"><tr><td colspan="6"><div class="empty">Loading…</div></td></tr></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- PREMIUM -->
+  <div class="page" id="page-premium">
+    <div class="page-head">
+      <h2>Premium Members</h2>
+      <button class="btn btn-ghost btn-sm" onclick="loadPremium()">↻ Refresh</button>
+    </div>
+    <div class="card">
+      <table>
+        <thead><tr><th>Player</th><th>ELO</th><th>Activated</th><th>Source</th><th></th></tr></thead>
+        <tbody id="premium-body"><tr><td colspan="5"><div class="empty">Loading…</div></td></tr></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- SEASONS -->
+  <div class="page" id="page-seasons">
+    <h2>Seasons</h2>
+    <div class="card" style="margin-bottom:16px">
+      <div class="card-head"><div class="card-title">Start New Season</div></div>
+      <div class="inline-form">
+        <div class="fg"><label>Season Name</label><input id="season-name" placeholder="e.g. Season 1" style="width:220px"/></div>
+        <button class="btn btn-primary" onclick="startSeason()">Start Season</button>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-head">
+        <div class="card-title">Season History</div>
+        <button class="btn btn-danger btn-sm" onclick="endSeason()">End Active Season</button>
+      </div>
+      <table>
+        <thead><tr><th>#</th><th>Name</th><th>Status</th><th>Started</th><th>Ended</th></tr></thead>
+        <tbody id="seasons-body"><tr><td colspan="5"><div class="empty">Loading…</div></td></tr></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- MODES -->
+  <div class="page" id="page-modes">
+    <h2>Queue Modes</h2>
+    <div class="card" style="margin-bottom:16px">
+      <div class="card-head"><div class="card-title">Add New Mode</div></div>
+      <div class="inline-form">
+        <div class="fg"><label>Mode ID</label><input id="mode-id" placeholder="e.g. 2v2" style="width:110px"/></div>
+        <div class="fg"><label>Display Name</label><input id="mode-name" placeholder="e.g. 2v2 Teams" style="width:160px"/></div>
+        <div class="fg"><label>Description</label><input id="mode-desc" placeholder="Optional" style="width:200px"/></div>
+        <button class="btn btn-primary" onclick="addMode()">Add Mode</button>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-head">
+        <div class="card-title">Active Modes</div>
+        <button class="btn btn-ghost btn-sm" onclick="loadModes()">↻ Refresh</button>
+      </div>
+      <table>
+        <thead><tr><th>Mode ID</th><th>Display Name</th><th>Description</th><th>Status</th><th></th></tr></thead>
+        <tbody id="modes-body"><tr><td colspan="5"><div class="empty">Loading…</div></td></tr></tbody>
+      </table>
+    </div>
+  </div>
+
+</div>
+
+<!-- Server Config Modal -->
 <div class="modal-overlay" id="server-modal">
   <div class="modal">
-    <h3>Configure Server</h3>
-    <div class="form-group"><label>Queue Channel ID</label><input id="m-queue-ch" placeholder="Discord channel ID"/></div>
-    <div class="form-group"><label>Results Channel ID</label><input id="m-results-ch" placeholder="Discord channel ID"/></div>
+    <div class="modal-title">Configure Server</div>
+    <div class="fg"><label>Queue Channel ID</label><input id="m-queue-ch" placeholder="Discord channel ID"/></div>
+    <div class="fg"><label>Results Channel ID</label><input id="m-results-ch" placeholder="Discord channel ID"/></div>
     <input type="hidden" id="m-server-id"/>
     <div class="modal-actions">
       <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
-      <button class="btn btn-primary" onclick="saveServerConfig()">Save</button>
+      <button class="btn btn-primary" onclick="saveServerConfig()">Save Changes</button>
     </div>
   </div>
 </div>
@@ -864,9 +966,9 @@ input:focus,select:focus{border-color:var(--border-h)}
 <!-- ELO Edit Modal -->
 <div class="modal-overlay" id="elo-modal">
   <div class="modal">
-    <h3>Set ELO</h3>
-    <div class="form-group"><label>Player</label><div id="m-player-name" style="font-weight:600;font-size:14px;padding:4px 0"></div></div>
-    <div class="form-group"><label>New ELO</label><input id="m-elo" type="number" min="0" max="9999"/></div>
+    <div class="modal-title">Edit ELO</div>
+    <div class="fg" style="margin-bottom:8px"><label>Player</label><div id="m-player-name" style="font-size:14px;font-weight:600;color:var(--text);padding:4px 0"></div></div>
+    <div class="fg"><label>New ELO</label><input id="m-elo" type="number" min="0" max="9999"/></div>
     <input type="hidden" id="m-player-id"/>
     <div class="modal-actions">
       <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
@@ -885,15 +987,16 @@ async function api(url,opts={}){
   return r.json();
 }
 function toast(msg,ok=true){
-  const t=document.getElementById('toast');t.textContent=msg;
+  const t=document.getElementById('toast');
+  t.innerHTML=(ok?'<span>✓</span>':'<span>✕</span>')+' '+esc(msg);
   t.className='toast '+(ok?'ok':'err');t.classList.add('show');
-  setTimeout(()=>t.classList.remove('show'),3000);
+  setTimeout(()=>t.classList.remove('show'),3200);
 }
-function showTab(name){
-  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
-  document.querySelectorAll('.sbtn').forEach(b=>b.classList.remove('active'));
-  document.getElementById('tab-'+name).classList.add('active');
-  event.currentTarget.classList.add('active');
+function showTab(name,el){
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.tb').forEach(b=>b.classList.remove('active'));
+  document.getElementById('page-'+name).classList.add('active');
+  el.classList.add('active');
   if(name==='overview')loadOverview();
   if(name==='servers')loadServers();
   if(name==='players')loadPlayers();
@@ -908,18 +1011,18 @@ async function loadOverview(){
   document.getElementById('ov-matches').textContent=stats.total_matches||0;
   document.getElementById('ov-queue').textContent=stats.queue_size||0;
   document.getElementById('ov-servers').textContent=Array.isArray(servers)?servers.length:'—';
-  document.getElementById('ov-season').textContent=stats.season||'None';
+  document.getElementById('ov-season').textContent=stats.season||'No active season';
 }
 async function loadServers(){
   const d=await api('/api/dash/servers');
   const tb=document.getElementById('servers-body');
   if(!d||!d.length){tb.innerHTML='<tr><td colspan="5"><div class="empty">No servers connected yet.</div></td></tr>';return}
   tb.innerHTML=d.map(s=>`<tr>
-    <td><strong>${esc(s.name)}</strong><br><span style="font-size:11px;color:var(--muted)">${s.guild_id}</span></td>
+    <td><div style="font-weight:600">${esc(s.name)}</div><div class="cell-sub">${s.guild_id}</div></td>
     <td>${s.member_count.toLocaleString()}</td>
-    <td><span style="font-size:12px;color:var(--sub)">${s.queue_channel_id||'—'}</span></td>
-    <td><span style="font-size:12px;color:var(--sub)">${s.results_channel_id||'—'}</span></td>
-    <td><button class="btn btn-ghost btn-sm" onclick="openServerModal(${s.guild_id},'${esc(s.name)}',${s.queue_channel_id||"''"},${s.results_channel_id||"''"})">Configure</button></td>
+    <td><span style="font-size:12px;color:var(--muted)">${s.queue_channel_id||'—'}</span></td>
+    <td><span style="font-size:12px;color:var(--muted)">${s.results_channel_id||'—'}</span></td>
+    <td><button class="btn btn-ghost btn-xs" onclick="openServerModal(${s.guild_id},'${esc(s.name)}',${s.queue_channel_id||"''"},${s.results_channel_id||"''"})">Configure</button></td>
   </tr>`).join('');
 }
 function openServerModal(id,name,qch,rch){
@@ -943,19 +1046,19 @@ async function loadPlayers(reset=true){
   const tb=document.getElementById('players-body');
   if(!d||!d.length){tb.innerHTML='<tr><td colspan="6"><div class="empty">No players found.</div></td></tr>';return}
   tb.innerHTML=d.map(p=>`<tr>
-    <td><strong>${esc(p.username)}</strong><br><span style="font-size:11px;color:var(--muted)">${p.discord_id}</span></td>
-    <td>${p.elo}</td>
-    <td style="font-size:12px;color:var(--sub)">${esc(p.rank||'')}</td>
-    <td style="font-size:12px"><span style="color:var(--green)">${p.wins}W</span>/<span style="color:var(--red)">${p.losses}L</span></td>
+    <td><div style="font-weight:600">${esc(p.username)}</div><div class="cell-sub">${p.discord_id}</div></td>
+    <td style="font-weight:600">${p.elo}</td>
+    <td style="font-size:12px;color:var(--muted)">${esc(p.rank||'')}</td>
+    <td><span style="color:var(--green);font-weight:600">${p.wins}W</span><span style="color:var(--muted)"> / </span><span style="color:var(--red);font-weight:600">${p.losses}L</span></td>
     <td>${p.is_premium?'<span class="tag tag-purple">⭐ Premium</span>':'<span style="color:var(--muted);font-size:12px">—</span>'}</td>
-    <td style="display:flex;gap:6px;flex-wrap:wrap">
-      <button class="btn btn-ghost btn-sm" onclick="openEloModal(${p.discord_id},'${esc(p.username)}',${p.elo})">ELO</button>
-      <button class="btn btn-ghost btn-sm" onclick="resetStats(${p.discord_id},'${esc(p.username)}')" style="color:var(--muted)">Reset</button>
+    <td><div style="display:flex;gap:5px;flex-wrap:wrap">
+      <button class="btn btn-ghost btn-xs" onclick="openEloModal(${p.discord_id},'${esc(p.username)}',${p.elo})">Edit ELO</button>
+      <button class="btn btn-ghost btn-xs" onclick="resetStats(${p.discord_id},'${esc(p.username)}')" style="color:var(--muted)">Reset</button>
       ${p.is_premium
-        ?`<button class="btn btn-danger btn-sm" onclick="togglePremium(${p.discord_id},false,'${esc(p.username)}')">Revoke ⭐</button>`
-        :`<button class="btn btn-ghost btn-sm" style="color:var(--accent2)" onclick="togglePremium(${p.discord_id},true,'${esc(p.username)}')">Grant ⭐</button>`
+        ?`<button class="btn btn-danger btn-xs" onclick="togglePremium(${p.discord_id},false,'${esc(p.username)}')">Revoke ⭐</button>`
+        :`<button class="btn btn-xs" style="background:rgba(124,58,237,.12);color:#c084fc;border:1px solid rgba(124,58,237,.25)" onclick="togglePremium(${p.discord_id},true,'${esc(p.username)}')">Grant ⭐</button>`
       }
-    </td>
+    </div></td>
   </tr>`).join('');
 }
 let searchTimer;
@@ -988,11 +1091,11 @@ async function loadPremium(){
   const tb=document.getElementById('premium-body');
   if(!d||!d.length){tb.innerHTML='<tr><td colspan="5"><div class="empty">No premium users yet.</div></td></tr>';return}
   tb.innerHTML=d.map(p=>`<tr>
-    <td><strong>${esc(p.username)}</strong><br><span style="font-size:11px;color:var(--muted)">${p.discord_id}</span></td>
-    <td>${p.elo}</td>
-    <td style="font-size:12px;color:var(--sub)">${fmtDate(p.activated_at)}</td>
+    <td><div style="font-weight:600">${esc(p.username)}</div><div class="cell-sub">${p.discord_id}</div></td>
+    <td style="font-weight:600">${p.elo}</td>
+    <td style="font-size:12px;color:var(--muted)">${fmtDate(p.activated_at)}</td>
     <td><span class="tag ${p.granted_by?'tag-purple':'tag-green'}">${p.granted_by?'Admin':'Gumroad'}</span></td>
-    <td><button class="btn btn-danger btn-sm" onclick="togglePremium(${p.discord_id},false,'${esc(p.username)}')">Revoke</button></td>
+    <td><button class="btn btn-danger btn-xs" onclick="togglePremium(${p.discord_id},false,'${esc(p.username)}')">Revoke</button></td>
   </tr>`).join('');
 }
 async function loadSeasons(){
@@ -1000,11 +1103,11 @@ async function loadSeasons(){
   const tb=document.getElementById('seasons-body');
   if(!d||!d.length){tb.innerHTML='<tr><td colspan="5"><div class="empty">No seasons yet.</div></td></tr>';return}
   tb.innerHTML=d.map(s=>`<tr>
-    <td style="color:var(--muted)">#${s.season_id}</td>
-    <td><strong>${esc(s.name)}</strong></td>
-    <td>${s.active?'<span class="tag tag-green">🟢 Active</span>':'<span class="tag tag-red">Ended</span>'}</td>
-    <td style="font-size:12px;color:var(--sub)">${fmtDate(s.started_at)}</td>
-    <td style="font-size:12px;color:var(--sub)">${fmtDate(s.ended_at)}</td>
+    <td style="color:var(--muted);font-weight:600">#${s.season_id}</td>
+    <td style="font-weight:600">${esc(s.name)}</td>
+    <td>${s.active?'<span class="tag tag-green">● Active</span>':'<span class="tag tag-red">Ended</span>'}</td>
+    <td style="font-size:12px;color:var(--muted)">${fmtDate(s.started_at)}</td>
+    <td style="font-size:12px;color:var(--muted)">${fmtDate(s.ended_at)}</td>
   </tr>`).join('');
 }
 async function startSeason(){
@@ -1025,11 +1128,11 @@ async function loadModes(){
   const tb=document.getElementById('modes-body');
   if(!d||!d.length){tb.innerHTML='<tr><td colspan="5"><div class="empty">No modes.</div></td></tr>';return}
   tb.innerHTML=d.map(m=>`<tr>
-    <td><code style="background:rgba(124,58,237,.12);padding:2px 7px;border-radius:4px;font-size:12px">${esc(m.mode_id)}</code></td>
-    <td><strong>${esc(m.display_name)}</strong></td>
-    <td style="font-size:12px;color:var(--sub)">${esc(m.description||'—')}</td>
+    <td><code class="pill">${esc(m.mode_id)}</code></td>
+    <td style="font-weight:600">${esc(m.display_name)}</td>
+    <td style="font-size:12px;color:var(--muted)">${esc(m.description||'—')}</td>
     <td><span class="tag ${m.enabled?'tag-green':'tag-red'}">${m.enabled?'Active':'Disabled'}</span></td>
-    <td>${['ranked','casual'].includes(m.mode_id)?'<span style="font-size:12px;color:var(--muted)">Built-in</span>':`<button class="btn btn-danger btn-sm" onclick="deleteMode('${esc(m.mode_id)}')">Remove</button>`}</td>
+    <td>${['ranked','casual'].includes(m.mode_id)?'<span style="font-size:11px;color:var(--muted)">Built-in</span>':`<button class="btn btn-danger btn-xs" onclick="deleteMode('${esc(m.mode_id)}')">Remove</button>`}</td>
   </tr>`).join('');
 }
 async function addMode(){
