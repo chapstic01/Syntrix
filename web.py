@@ -1015,384 +1015,549 @@ DASHBOARD_HTML = """<!DOCTYPE html>
 <title>Syntrix Dashboard</title>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet"/>
 <style>
+/* ─────────────────────── RESET & VARS ─────────────────────── */
 :root{
-  --bg:#1e1f22;--bg2:#2b2d31;--bg3:#313338;
-  --accent:#7c3aed;--accent2:#a855f7;--accent-glow:rgba(124,58,237,.25);
-  --border:#3f4248;--border-h:rgba(124,58,237,.5);
-  --text:#dbdee1;--text2:#b5bac1;--muted:#80848e;
-  --green:#23a55a;--green-bg:rgba(35,165,90,.12);--green-border:rgba(35,165,90,.3);
-  --red:#f23f43;--red-bg:rgba(242,63,67,.1);--red-border:rgba(242,63,67,.25);
-  --gold:#f0b232;
-  --r:8px;--r2:12px;
+  --bg:#0e1117;--sidebar:#13181f;--sidebar-h:#1a2130;
+  --bg2:#1c2232;--bg3:#232b3e;--bg4:#2a3347;
+  --accent:#7c3aed;--accent2:#a855f7;--accent-dim:rgba(124,58,237,.15);--accent-glow:rgba(124,58,237,.25);
+  --border:rgba(255,255,255,.07);--border-h:rgba(124,58,237,.45);
+  --text:#e2e8f0;--text2:#94a3b8;--muted:#64748b;
+  --green:#22c55e;--green-bg:rgba(34,197,94,.1);--green-border:rgba(34,197,94,.25);
+  --red:#ef4444;--red-bg:rgba(239,68,68,.1);--red-border:rgba(239,68,68,.25);
+  --yellow:#f59e0b;--yellow-bg:rgba(245,158,11,.1);--yellow-border:rgba(245,158,11,.25);
+  --gold:#f59e0b;--r:8px;--r2:12px;--r3:16px;
+  --sidebar-w:240px;
 }
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-body{font-family:Inter,sans-serif;background:var(--bg);color:var(--text);min-height:100vh;display:flex;flex-direction:column}
+body{font-family:Inter,sans-serif;background:var(--bg);color:var(--text);min-height:100vh;display:flex;overflow:hidden}
 
-/* ── Navbar ── */
-nav{
-  background:var(--bg2);border-bottom:1px solid var(--border);
-  padding:0 28px;height:56px;display:flex;align-items:center;
-  justify-content:space-between;flex-shrink:0;position:sticky;top:0;z-index:200;
+/* ─────────────────────── SIDEBAR ─────────────────────── */
+.sidebar{
+  width:var(--sidebar-w);flex-shrink:0;background:var(--sidebar);
+  border-right:1px solid var(--border);display:flex;flex-direction:column;
+  height:100vh;position:fixed;left:0;top:0;z-index:100;overflow-y:auto;
 }
-.logo{
-  font-size:15px;font-weight:900;letter-spacing:4px;
+.sb-logo{
+  padding:20px 18px 16px;display:flex;align-items:center;gap:10px;
+  border-bottom:1px solid var(--border);
+}
+.sb-logo-icon{
+  width:36px;height:36px;border-radius:10px;
+  background:linear-gradient(135deg,var(--accent),var(--accent2));
+  display:flex;align-items:center;justify-content:center;
+  font-size:15px;font-weight:900;letter-spacing:1px;color:#fff;flex-shrink:0;
+}
+.sb-logo-text{font-size:14px;font-weight:800;letter-spacing:2px;
   background:linear-gradient(135deg,#c084fc,#7c3aed);
-  -webkit-background-clip:text;-webkit-text-fill-color:transparent;
-}
-.logo-badge{
-  font-size:10px;font-weight:700;letter-spacing:1.5px;
-  background:rgba(124,58,237,.18);border:1px solid rgba(124,58,237,.35);
-  color:#a78bfa;padding:2px 7px;border-radius:4px;
-  -webkit-text-fill-color:#a78bfa;margin-left:10px;
-}
-.nav-actions{display:flex;align-items:center;gap:6px}
-.na{
-  color:var(--text2);text-decoration:none;font-size:13px;font-weight:500;
-  padding:6px 12px;border-radius:var(--r);transition:all .15s;
-  border:none;background:none;cursor:pointer;font-family:inherit;
-}
-.na:hover{background:rgba(255,255,255,.06);color:var(--text)}
-.na-danger{color:#f87171}
-.na-danger:hover{background:var(--red-bg)!important;color:var(--red)}
-
-/* ── Tab bar ── */
-.tabbar{
-  background:var(--bg2);border-bottom:1px solid var(--border);
-  padding:0 28px;display:flex;gap:2px;flex-shrink:0;
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;}
+.sb-logo-badge{font-size:9px;font-weight:700;letter-spacing:1px;
+  background:rgba(124,58,237,.18);border:1px solid rgba(124,58,237,.3);
+  color:#a78bfa;padding:2px 6px;border-radius:4px;-webkit-text-fill-color:#a78bfa;
+  display:block;margin-top:1px;}
+.sb-nav{flex:1;padding:10px 10px}
+.sb-section{
+  font-size:10px;font-weight:700;letter-spacing:.9px;text-transform:uppercase;
+  color:var(--muted);padding:12px 10px 5px;
 }
 .tb{
-  display:flex;align-items:center;gap:7px;
-  padding:0 14px;height:44px;font-size:13px;font-weight:500;
-  color:var(--muted);border:none;background:none;cursor:pointer;
-  font-family:inherit;position:relative;transition:color .15s;white-space:nowrap;
+  display:flex;align-items:center;gap:10px;width:100%;
+  padding:8px 10px;border-radius:var(--r);font-size:13px;font-weight:500;
+  color:var(--text2);border:none;background:none;cursor:pointer;
+  font-family:inherit;transition:all .15s;text-align:left;position:relative;
+  white-space:nowrap;
 }
-.tb:hover{color:var(--text2)}
-.tb.active{color:var(--text)}
-.tb.active::after{
-  content:'';position:absolute;bottom:0;left:0;right:0;height:2px;
-  background:linear-gradient(90deg,var(--accent),var(--accent2));border-radius:2px 2px 0 0;
+.tb:hover{background:var(--sidebar-h);color:var(--text)}
+.tb.active{background:var(--accent-dim);color:#c084fc;font-weight:600}
+.tb.active::before{
+  content:'';position:absolute;left:0;top:50%;transform:translateY(-50%);
+  width:3px;height:60%;background:var(--accent2);border-radius:0 3px 3px 0;
 }
-.tb-ico{font-size:14px}
+.tb-ico{font-size:15px;width:20px;text-align:center;flex-shrink:0}
+.sb-footer{
+  padding:12px 10px;border-top:1px solid var(--border);
+  display:flex;flex-direction:column;gap:4px;
+}
+.sb-footer-link{
+  display:flex;align-items:center;gap:8px;padding:7px 10px;
+  border-radius:var(--r);font-size:12px;font-weight:500;color:var(--muted);
+  text-decoration:none;cursor:pointer;border:none;background:none;font-family:inherit;
+  transition:all .15s;
+}
+.sb-footer-link:hover{background:var(--sidebar-h);color:var(--text2)}
+.sb-footer-link.danger:hover{background:var(--red-bg);color:var(--red)}
 
-/* ── Main ── */
-.main{flex:1;padding:28px 32px;overflow-y:auto;max-width:1200px;width:100%}
+/* ─────────────────────── MAIN AREA ─────────────────────── */
+.main-wrap{
+  margin-left:var(--sidebar-w);flex:1;display:flex;flex-direction:column;
+  height:100vh;overflow:hidden;min-width:0;
+}
+.topbar{
+  background:var(--sidebar);border-bottom:1px solid var(--border);
+  padding:0 28px;height:56px;display:flex;align-items:center;
+  justify-content:space-between;flex-shrink:0;
+}
+.topbar-title{font-size:15px;font-weight:700;color:var(--text)}
+.topbar-sub{font-size:12px;color:var(--muted);margin-top:1px}
+.content{flex:1;overflow-y:auto;padding:28px 32px}
+
+/* ─────────────────────── PAGE STRUCTURE ─────────────────────── */
 .page{display:none}.page.active{display:block}
-h2{font-size:17px;font-weight:700;color:var(--text);margin-bottom:20px;letter-spacing:-.2px}
-.page-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px}
-.page-head h2{margin-bottom:0}
+.page-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:24px;gap:12px;flex-wrap:wrap}
+.page-head-left h2{font-size:20px;font-weight:700;color:var(--text);letter-spacing:-.3px}
+.page-head-left p{font-size:13px;color:var(--muted);margin-top:3px}
+h2{font-size:20px;font-weight:700;color:var(--text);margin-bottom:20px;letter-spacing:-.3px}
 
-/* ── Stats grid ── */
-.stats-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:24px}
+/* ─────────────────────── STAT CARDS ─────────────────────── */
+.stats-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px;margin-bottom:28px}
 .stat-card{
   background:var(--bg2);border:1px solid var(--border);border-radius:var(--r2);
-  padding:18px 20px;transition:border-color .2s;
+  padding:20px 22px;transition:all .2s;cursor:default;
 }
-.stat-card:hover{border-color:rgba(124,58,237,.35)}
-.stat-val{font-size:28px;font-weight:800;color:var(--text);line-height:1}
-.stat-val.accent{background:linear-gradient(135deg,var(--text),var(--accent2));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
-.stat-lbl{font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.7px;margin-top:6px}
+.stat-card:hover{border-color:var(--border-h);transform:translateY(-1px)}
+.stat-icon{font-size:22px;margin-bottom:12px;display:block}
+.stat-val{font-size:30px;font-weight:800;color:var(--text);line-height:1;letter-spacing:-1px}
+.stat-val.green{color:var(--green)}
+.stat-val.purple{background:linear-gradient(135deg,#c084fc,#7c3aed);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.stat-lbl{font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.8px;margin-top:6px}
 
-/* ── Cards ── */
-.card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--r2);overflow:hidden;margin-bottom:16px}
+/* ─────────────────────── CARDS ─────────────────────── */
+.card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--r2);overflow:hidden;margin-bottom:18px}
 .card-head{
   padding:14px 20px;border-bottom:1px solid var(--border);
-  display:flex;align-items:center;justify-content:space-between;
+  display:flex;align-items:center;justify-content:space-between;gap:10px;
 }
-.card-title{font-size:13px;font-weight:600;color:var(--text)}
-.card-body{padding:16px 20px}
+.card-title{font-size:13px;font-weight:600;color:var(--text);display:flex;align-items:center;gap:8px}
+.card-body{padding:20px}
+.card-body-sm{padding:16px 20px}
 
-/* ── Table ── */
-table{width:100%;border-collapse:collapse}
+/* ─────────────────────── TABLE ─────────────────────── */
+.tbl-wrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse;min-width:500px}
 th{
   font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;
-  letter-spacing:.8px;padding:10px 16px;text-align:left;
-  border-bottom:1px solid var(--border);background:rgba(0,0,0,.12);
+  letter-spacing:.8px;padding:10px 16px;text-align:left;background:rgba(0,0,0,.15);
+  border-bottom:1px solid var(--border);white-space:nowrap;
 }
-td{padding:11px 16px;font-size:13px;border-bottom:1px solid rgba(255,255,255,.04);color:var(--text)}
+td{padding:12px 16px;font-size:13px;border-bottom:1px solid rgba(255,255,255,.04);color:var(--text);vertical-align:middle}
 tr:last-child td{border-bottom:none}
-tr:hover td{background:rgba(255,255,255,.025)}
-.cell-sub{font-size:11px;color:var(--muted);margin-top:2px}
+tr:hover td{background:rgba(255,255,255,.02)}
+.cell-sub{font-size:11px;color:var(--muted);margin-top:2px;font-family:monospace}
+.cell-main{font-weight:600;font-size:14px}
 
-/* ── Inline form row (inside cards) ── */
-.inline-form{display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;padding:14px 20px;border-top:1px solid var(--border)}
+/* ─────────────────────── ELO BAR ─────────────────────── */
+.elo-wrap{display:flex;align-items:center;gap:8px}
+.elo-num{font-weight:700;font-size:14px;min-width:38px}
+.elo-bar{height:4px;border-radius:2px;background:var(--bg3);flex:1;max-width:80px;overflow:hidden}
+.elo-fill{height:100%;border-radius:2px;background:linear-gradient(90deg,var(--accent),var(--accent2))}
+
+/* ─────────────────────── INLINE FORM ─────────────────────── */
+.inline-form{display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap;padding:16px 20px;border-top:1px solid var(--border)}
 .fg{display:flex;flex-direction:column;gap:5px}
 .fg label{font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.5px}
 
-/* ── Inputs ── */
-input,select{
+/* ─────────────────────── INPUTS ─────────────────────── */
+input,select,textarea{
   background:var(--bg3);border:1px solid var(--border);border-radius:var(--r);
-  padding:7px 11px;font-size:13px;color:var(--text);font-family:inherit;
-  outline:none;transition:border-color .15s;
+  padding:8px 12px;font-size:13px;color:var(--text);font-family:inherit;
+  outline:none;transition:border-color .15s,box-shadow .15s;
 }
-input::placeholder{color:var(--muted)}
-input:focus,select:focus{border-color:var(--border-h);box-shadow:0 0 0 3px var(--accent-glow)}
-.search-bar{display:flex;gap:10px;margin-bottom:14px}
-.search-bar input{flex:1}
+input::placeholder,textarea::placeholder{color:var(--muted)}
+input:focus,select:focus,textarea:focus{border-color:var(--border-h);box-shadow:0 0 0 3px var(--accent-glow)}
+select option{background:var(--bg3)}
+.search-row{display:flex;gap:10px;margin-bottom:16px}
+.search-row input{flex:1;max-width:360px}
 
-/* ── Buttons ── */
+/* ─────────────────────── BUTTONS ─────────────────────── */
 .btn{
-  display:inline-flex;align-items:center;gap:6px;
-  padding:7px 14px;border-radius:var(--r);font-size:13px;font-weight:600;
-  cursor:pointer;font-family:inherit;border:none;transition:all .15s;white-space:nowrap;
+  display:inline-flex;align-items:center;gap:6px;padding:8px 16px;
+  border-radius:var(--r);font-size:13px;font-weight:600;cursor:pointer;
+  font-family:inherit;border:none;transition:all .15s;white-space:nowrap;text-decoration:none;
 }
-.btn-primary{background:linear-gradient(135deg,var(--accent),var(--accent2));color:#fff;box-shadow:0 2px 8px var(--accent-glow)}
-.btn-primary:hover{opacity:.88;transform:translateY(-1px)}
+.btn-primary{background:linear-gradient(135deg,var(--accent),var(--accent2));color:#fff;box-shadow:0 2px 12px var(--accent-glow)}
+.btn-primary:hover{opacity:.88;transform:translateY(-1px);box-shadow:0 4px 20px var(--accent-glow)}
 .btn-ghost{background:rgba(255,255,255,.05);color:var(--text2);border:1px solid var(--border)}
-.btn-ghost:hover{background:rgba(255,255,255,.09);color:var(--text)}
+.btn-ghost:hover{background:rgba(255,255,255,.09);color:var(--text);border-color:var(--border-h)}
 .btn-danger{background:var(--red-bg);color:var(--red);border:1px solid var(--red-border)}
-.btn-danger:hover{background:rgba(242,63,67,.18)}
-.btn-sm{padding:4px 10px;font-size:12px}
-.btn-xs{padding:3px 8px;font-size:11px}
+.btn-danger:hover{background:rgba(239,68,68,.18)}
+.btn-purple{background:rgba(124,58,237,.14);color:#c084fc;border:1px solid rgba(124,58,237,.3)}
+.btn-purple:hover{background:rgba(124,58,237,.22)}
+.btn-sm{padding:5px 12px;font-size:12px}
+.btn-xs{padding:3px 9px;font-size:11px}
 
-/* ── Tags ── */
-.tag{display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:700;padding:2px 7px;border-radius:4px}
+/* ─────────────────────── TAGS / BADGES ─────────────────────── */
+.badge{display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:700;padding:3px 8px;border-radius:5px}
+.badge-green{background:var(--green-bg);color:var(--green);border:1px solid var(--green-border)}
+.badge-red{background:var(--red-bg);color:var(--red);border:1px solid var(--red-border)}
+.badge-purple{background:rgba(124,58,237,.14);color:#c084fc;border:1px solid rgba(124,58,237,.3)}
+.badge-yellow{background:var(--yellow-bg);color:var(--yellow);border:1px solid var(--yellow-border)}
+.badge-muted{background:rgba(255,255,255,.05);color:var(--muted);border:1px solid var(--border)}
+/* keep .tag aliases for old JS */
+.tag{display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:700;padding:3px 8px;border-radius:5px}
 .tag-green{background:var(--green-bg);color:var(--green);border:1px solid var(--green-border)}
 .tag-red{background:var(--red-bg);color:var(--red);border:1px solid var(--red-border)}
 .tag-purple{background:rgba(124,58,237,.14);color:#c084fc;border:1px solid rgba(124,58,237,.3)}
-.tag-gold{background:rgba(240,178,50,.12);color:var(--gold);border:1px solid rgba(240,178,50,.3)}
+.tag-gold{background:var(--yellow-bg);color:var(--gold);border:1px solid var(--yellow-border)}
 
-/* ── Empty state ── */
-.empty{padding:40px 16px;text-align:center;color:var(--muted);font-size:13px}
+/* ─────────────────────── SERVER CARDS ─────────────────────── */
+.server-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:14px}
+.server-card{
+  background:var(--bg2);border:1px solid var(--border);border-radius:var(--r2);
+  padding:20px;display:flex;flex-direction:column;gap:14px;
+  transition:all .2s;cursor:default;
+}
+.server-card:hover{border-color:var(--border-h);transform:translateY(-2px);box-shadow:0 8px 32px rgba(0,0,0,.3)}
+.server-card-head{display:flex;align-items:center;gap:12px}
+.server-icon{
+  width:46px;height:46px;border-radius:12px;
+  background:linear-gradient(135deg,var(--accent),var(--accent2));
+  display:flex;align-items:center;justify-content:center;
+  font-size:19px;font-weight:800;color:#fff;flex-shrink:0;
+}
+.server-name{font-weight:700;font-size:14px;line-height:1.3}
+.server-meta{font-size:11px;color:var(--muted);margin-top:2px}
 
-/* ── Toast ── */
+/* ─────────────────────── CONSOLE ─────────────────────── */
+.console-wrap{display:flex;gap:14px;height:calc(100vh - 200px);min-height:400px}
+.console-sidebar{
+  width:200px;flex-shrink:0;background:var(--bg2);border:1px solid var(--border);
+  border-radius:var(--r2);overflow-y:auto;
+}
+.console-sidebar-head{
+  padding:10px 14px;font-size:10px;font-weight:700;color:var(--muted);
+  text-transform:uppercase;letter-spacing:.8px;border-bottom:1px solid var(--border);
+}
+.con-ch-item{
+  padding:6px 12px;font-size:13px;color:var(--text2);cursor:pointer;
+  display:flex;align-items:center;gap:6px;transition:all .1s;
+}
+.con-ch-item:hover{background:var(--sidebar-h);color:var(--text)}
+.con-ch-item.active{background:var(--accent-dim);color:#c084fc}
+.con-ch-cat{
+  padding:10px 12px 4px;font-size:10px;font-weight:700;color:var(--muted);
+  text-transform:uppercase;letter-spacing:.6px;
+}
+.console-main{
+  flex:1;display:flex;flex-direction:column;
+  background:var(--bg2);border:1px solid var(--border);border-radius:var(--r2);overflow:hidden;
+}
+.console-topbar{
+  padding:12px 16px;border-bottom:1px solid var(--border);
+  display:flex;align-items:center;justify-content:space-between;
+}
+.console-ch-label{font-size:14px;font-weight:600;color:var(--text);display:flex;align-items:center;gap:6px}
+.console-ch-label span{color:var(--muted);font-size:16px}
+.con-messages{flex:1;overflow-y:auto;padding:16px 18px;display:flex;flex-direction:column;gap:12px}
+.con-msg{display:flex;gap:10px;padding:4px 0}
+.con-avatar{width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:14px;flex-shrink:0;overflow:hidden}
+.con-avatar img{width:100%;height:100%;object-fit:cover}
+.con-msg-body{flex:1;min-width:0}
+.con-msg-header{display:flex;align-items:baseline;gap:7px;margin-bottom:2px}
+.con-msg-name{font-weight:600;font-size:13px;color:var(--text)}
+.con-msg-time{font-size:11px;color:var(--muted)}
+.con-bot-badge{font-size:9px;background:#5865f2;color:#fff;padding:1px 5px;border-radius:3px;font-weight:700}
+.con-msg-content{font-size:13px;color:var(--text2);word-break:break-word;white-space:pre-wrap;line-height:1.5}
+.con-input-bar{padding:12px 16px;border-top:1px solid var(--border);display:flex;gap:10px}
+.con-input-bar input{flex:1;background:var(--bg3);border:1px solid var(--border)}
+
+/* ─────────────────────── MISC ─────────────────────── */
+.empty{padding:48px 20px;text-align:center;color:var(--muted);font-size:13px}
+.empty-icon{font-size:32px;margin-bottom:10px;display:block;opacity:.4}
+code.pill{background:rgba(124,58,237,.12);color:#c084fc;padding:2px 7px;border-radius:4px;font-size:12px;font-family:monospace}
+.divider{height:1px;background:var(--border);margin:6px 0}
+
+/* ─────────────────────── TOAST ─────────────────────── */
 .toast{
-  position:fixed;bottom:24px;right:24px;
-  background:var(--bg2);border:1px solid var(--border);
-  border-radius:var(--r2);padding:11px 18px;font-size:13px;font-weight:500;
-  z-index:9999;transform:translateY(80px);opacity:0;transition:all .25s cubic-bezier(.34,1.56,.64,1);
-  display:flex;align-items:center;gap:8px;min-width:200px;
+  position:fixed;bottom:24px;right:24px;background:var(--bg2);
+  border:1px solid var(--border);border-radius:var(--r2);
+  padding:12px 18px;font-size:13px;font-weight:500;z-index:9999;
+  transform:translateY(80px);opacity:0;transition:all .3s cubic-bezier(.34,1.56,.64,1);
+  display:flex;align-items:center;gap:9px;min-width:220px;box-shadow:0 8px 32px rgba(0,0,0,.4);
 }
 .toast.show{transform:translateY(0);opacity:1}
 .toast.ok{border-color:var(--green-border);color:var(--green)}
 .toast.err{border-color:var(--red-border);color:var(--red)}
 
-/* ── Modal ── */
-.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:500;display:none;align-items:center;justify-content:center;backdrop-filter:blur(2px)}
+/* ─────────────────────── MODAL ─────────────────────── */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.8);z-index:500;display:none;align-items:center;justify-content:center;backdrop-filter:blur(3px)}
 .modal-overlay.open{display:flex}
-.modal{background:var(--bg2);border:1px solid var(--border-h);border-radius:16px;padding:28px;min-width:360px;max-width:460px;width:92%;box-shadow:0 20px 60px rgba(0,0,0,.5)}
-.modal-title{font-size:15px;font-weight:700;color:var(--text);margin-bottom:20px}
+.modal{
+  background:var(--bg2);border:1px solid var(--border-h);border-radius:var(--r3);
+  padding:28px;min-width:380px;max-width:480px;width:92%;
+  box-shadow:0 24px 80px rgba(0,0,0,.6);
+}
+.modal-title{font-size:16px;font-weight:700;color:var(--text);margin-bottom:22px;display:flex;align-items:center;gap:8px}
 .modal .fg{margin-bottom:14px;width:100%}
 .modal .fg input,.modal .fg select{width:100%}
-.modal-actions{display:flex;gap:10px;justify-content:flex-end;margin-top:20px;padding-top:16px;border-top:1px solid var(--border)}
+.modal-actions{display:flex;gap:10px;justify-content:flex-end;margin-top:22px;padding-top:18px;border-top:1px solid var(--border)}
+.modal-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
 
-/* ── Code pill ── */
-code.pill{background:rgba(124,58,237,.12);color:#c084fc;padding:2px 7px;border-radius:4px;font-size:12px;font-family:monospace}
+/* ─────────────────────── SUB-TABS ─────────────────────── */
+.sub-tabs{display:flex;gap:2px;margin-bottom:18px;border-bottom:1px solid var(--border);padding-bottom:0}
 </style>
 </head>
 <body>
 
-<!-- Navbar -->
-<nav>
-  <div style="display:flex;align-items:center">
-    <span class="logo">SYNTRIX</span>
-    <span class="logo-badge">DASHBOARD</span>
+<!-- Sidebar -->
+<aside class="sidebar">
+  <div class="sb-logo">
+    <div class="sb-logo-icon">S</div>
+    <div>
+      <div class="sb-logo-text">SYNTRIX</div>
+      <span class="sb-logo-badge">DASHBOARD</span>
+    </div>
   </div>
-  <div class="nav-actions">
-    <a href="/" class="na" target="_blank">↗ Public Site</a>
-    <a href="/dashboard/logout" class="na na-danger">Sign Out</a>
-  </div>
-</nav>
 
-<!-- Tab bar -->
-<div class="tabbar">
-  <button class="tb active" id="tab-overview" data-tab="overview" onclick="showTab('overview',this)"><span class="tb-ico">🏠</span>Overview</button>
-  <button class="tb" id="tab-servers" data-tab="servers" onclick="showTab('servers',this)"><span class="tb-ico">🖥️</span>Servers</button>
-  <button class="tb" id="tab-players" data-tab="players" onclick="showTab('players',this)"><span class="tb-ico">👥</span>Players</button>
-  <button class="tb" id="tab-premium" data-tab="premium" onclick="showTab('premium',this)"><span class="tb-ico">⭐</span>Premium</button>
-  <button class="tb" id="tab-seasons" data-tab="seasons" onclick="showTab('seasons',this)"><span class="tb-ico">🏆</span>Seasons</button>
-  <button class="tb" id="tab-modes" data-tab="modes" onclick="showTab('modes',this)"><span class="tb-ico">🎮</span>Queue Modes</button>
-  <button class="tb" id="tab-games" data-tab="games" onclick="showTab('games',this)"><span class="tb-ico">🗺️</span>Games</button>
-  <button class="tb" id="tab-myservers" data-tab="myservers" onclick="showTab('myservers',this)" style="display:none"><span class="tb-ico">🖥️</span>My Servers</button>
-  <button class="tb" id="tab-console" data-tab="console" onclick="showTab('console',this)" style="display:none"><span class="tb-ico">⌨️</span>Console</button>
+  <nav class="sb-nav">
+    <div id="bot-mgmt-section">
+    <button class="tb active" id="tab-overview" onclick="showTab('overview',this)"><span class="tb-ico">🏠</span>Overview</button>
+
+    <div class="divider" style="margin:8px 0"></div>
+    <div class="sb-section">Bot Management</div>
+    <button class="tb" id="tab-servers" onclick="showTab('servers',this)"><span class="tb-ico">🖥️</span>Servers</button>
+    <button class="tb" id="tab-players" onclick="showTab('players',this)"><span class="tb-ico">👥</span>Players</button>
+    <button class="tb" id="tab-premium" onclick="showTab('premium',this)"><span class="tb-ico">⭐</span>Premium</button>
+    <button class="tb" id="tab-seasons" onclick="showTab('seasons',this)"><span class="tb-ico">🏆</span>Seasons</button>
+    <button class="tb" id="tab-modes" onclick="showTab('modes',this)"><span class="tb-ico">🎮</span>Queue Modes</button>
+    <button class="tb" id="tab-games" onclick="showTab('games',this)"><span class="tb-ico">🗺️</span>Games</button>
+    </div>
+
+    <div id="myservers-section" style="display:none">
+      <div class="divider" style="margin:8px 0"></div>
+      <div class="sb-section">Server Admin</div>
+      <button class="tb" id="tab-myservers" onclick="showTab('myservers',this)"><span class="tb-ico">⚙️</span>My Servers</button>
+    </div>
+
+    <div id="console-section" style="display:none">
+      <div class="divider" style="margin:8px 0"></div>
+      <div class="sb-section">Tools</div>
+      <button class="tb" id="tab-console" onclick="showTab('console',this)"><span class="tb-ico">⌨️</span>Console</button>
+    </div>
+  </nav>
+
+  <div class="sb-footer">
+    <a href="/" class="sb-footer-link" target="_blank"><span>↗</span>Public Site</a>
+    <a href="/dashboard/logout" class="sb-footer-link danger"><span>⎋</span>Sign Out</a>
+  </div>
+</aside>
+
+<!-- Main -->
+<div class="main-wrap">
+
+<!-- Top bar -->
+<div class="topbar">
+  <div>
+    <div class="topbar-title" id="topbar-title">Overview</div>
+  </div>
+  <div style="display:flex;align-items:center;gap:8px">
+    <div id="topbar-status" style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted)">
+      <span style="width:7px;height:7px;border-radius:50%;background:var(--green);display:inline-block"></span>Online
+    </div>
+  </div>
 </div>
 
-<div class="main">
+<div class="content">
 
   <!-- OVERVIEW -->
   <div class="page active" id="page-overview">
-    <h2>Overview</h2>
+    <div class="page-head">
+      <div class="page-head-left"><h2>Overview</h2><p>Bot status and global statistics</p></div>
+      <button class="btn btn-ghost btn-sm" onclick="loadOverview()">↻ Refresh</button>
+    </div>
     <div class="stats-grid">
-      <div class="stat-card"><div class="stat-val accent" id="ov-players">—</div><div class="stat-lbl">Total Players</div></div>
-      <div class="stat-card"><div class="stat-val accent" id="ov-matches">—</div><div class="stat-lbl">Matches Played</div></div>
-      <div class="stat-card"><div class="stat-val accent" id="ov-queue">—</div><div class="stat-lbl">In Queue</div></div>
-      <div class="stat-card"><div class="stat-val accent" id="ov-servers">—</div><div class="stat-lbl">Servers</div></div>
+      <div class="stat-card"><span class="stat-icon">👥</span><div class="stat-val purple" id="ov-players">—</div><div class="stat-lbl">Total Players</div></div>
+      <div class="stat-card"><span class="stat-icon">⚔️</span><div class="stat-val purple" id="ov-matches">—</div><div class="stat-lbl">Matches Played</div></div>
+      <div class="stat-card"><span class="stat-icon">⏳</span><div class="stat-val green" id="ov-queue">—</div><div class="stat-lbl">In Queue</div></div>
+      <div class="stat-card"><span class="stat-icon">🖥️</span><div class="stat-val purple" id="ov-servers">—</div><div class="stat-lbl">Servers</div></div>
     </div>
     <div class="card">
-      <div class="card-head"><div class="card-title">Active Season</div></div>
-      <div class="card-body"><div id="ov-season" style="font-size:15px;font-weight:600">None</div></div>
+      <div class="card-head"><div class="card-title">🏆 Active Season</div></div>
+      <div class="card-body-sm"><div id="ov-season" style="font-size:15px;font-weight:600;color:var(--text)">Loading…</div></div>
     </div>
   </div>
 
   <!-- SERVERS -->
   <div class="page" id="page-servers">
     <div class="page-head">
-      <h2>Servers</h2>
+      <div class="page-head-left"><h2>Servers</h2><p>All servers using Syntrix</p></div>
       <button class="btn btn-ghost btn-sm" onclick="loadServers()">↻ Refresh</button>
     </div>
     <div class="card">
-      <table>
-        <thead><tr><th>Server</th><th>Members</th><th>Queue Channel</th><th>Results Channel</th><th></th></tr></thead>
-        <tbody id="servers-body"><tr><td colspan="5"><div class="empty">Loading…</div></td></tr></tbody>
-      </table>
+      <div class="tbl-wrap"><table>
+        <thead><tr><th>Server</th><th>Members</th><th>Queue Channel</th><th>Results Channel</th><th>Actions</th></tr></thead>
+        <tbody id="servers-body"><tr><td colspan="5"><div class="empty"><span class="empty-icon">🖥️</span>Loading servers…</div></td></tr></tbody>
+      </table></div>
     </div>
   </div>
 
   <!-- PLAYERS -->
   <div class="page" id="page-players">
-    <div class="page-head"><h2>Players</h2></div>
-    <div class="search-bar">
-      <input id="player-search" placeholder="Search by username…" oninput="searchPlayers()"/>
+    <div class="page-head">
+      <div class="page-head-left"><h2>Players</h2><p>All registered players and their stats</p></div>
+    </div>
+    <div class="search-row">
+      <input id="player-search" placeholder="🔍  Search by username…" oninput="searchPlayers()" style="max-width:320px"/>
     </div>
     <div class="card">
-      <table>
-        <thead><tr><th>Player</th><th>ELO</th><th>Rank</th><th>Record</th><th>Premium</th><th></th></tr></thead>
-        <tbody id="players-body"><tr><td colspan="6"><div class="empty">Loading…</div></td></tr></tbody>
-      </table>
+      <div class="tbl-wrap"><table>
+        <thead><tr><th>Player</th><th>ELO</th><th>Rank</th><th>Record</th><th>Status</th><th>Actions</th></tr></thead>
+        <tbody id="players-body"><tr><td colspan="6"><div class="empty"><span class="empty-icon">👥</span>Loading players…</div></td></tr></tbody>
+      </table></div>
     </div>
   </div>
 
   <!-- PREMIUM -->
   <div class="page" id="page-premium">
     <div class="page-head">
-      <h2>Premium Members</h2>
+      <div class="page-head-left"><h2>Premium Members</h2><p>Users with active premium subscriptions</p></div>
       <button class="btn btn-ghost btn-sm" onclick="loadPremium()">↻ Refresh</button>
     </div>
     <div class="card">
-      <table>
-        <thead><tr><th>Player</th><th>ELO</th><th>Activated</th><th>Source</th><th></th></tr></thead>
-        <tbody id="premium-body"><tr><td colspan="5"><div class="empty">Loading…</div></td></tr></tbody>
-      </table>
+      <div class="tbl-wrap"><table>
+        <thead><tr><th>Player</th><th>ELO</th><th>Activated</th><th>Source</th><th>Actions</th></tr></thead>
+        <tbody id="premium-body"><tr><td colspan="5"><div class="empty"><span class="empty-icon">⭐</span>No premium users yet.</div></td></tr></tbody>
+      </table></div>
     </div>
   </div>
 
   <!-- SEASONS -->
   <div class="page" id="page-seasons">
-    <h2>Seasons</h2>
-    <div class="card" style="margin-bottom:16px">
-      <div class="card-head"><div class="card-title">Start New Season</div></div>
-      <div class="inline-form">
-        <div class="fg"><label>Season Name</label><input id="season-name" placeholder="e.g. Season 1" style="width:220px"/></div>
-        <button class="btn btn-primary" onclick="startSeason()">Start Season</button>
-      </div>
+    <div class="page-head">
+      <div class="page-head-left"><h2>Seasons</h2><p>Manage competitive seasons and ELO resets</p></div>
     </div>
-    <div class="card">
-      <div class="card-head">
-        <div class="card-title">Season History</div>
-        <button class="btn btn-danger btn-sm" onclick="endSeason()">End Active Season</button>
+    <div style="display:grid;grid-template-columns:1fr 2fr;gap:18px;align-items:start">
+      <div class="card">
+        <div class="card-head"><div class="card-title">🚀 New Season</div></div>
+        <div class="card-body">
+          <div class="fg" style="margin-bottom:14px"><label>Season Name</label><input id="season-name" placeholder="e.g. Season 1" style="width:100%"/></div>
+          <button class="btn btn-primary" style="width:100%" onclick="startSeason()">Start Season</button>
+          <div style="margin-top:10px">
+            <button class="btn btn-danger" style="width:100%" onclick="endSeason()">End Active Season</button>
+          </div>
+        </div>
       </div>
-      <table>
-        <thead><tr><th>#</th><th>Name</th><th>Status</th><th>Started</th><th>Ended</th></tr></thead>
-        <tbody id="seasons-body"><tr><td colspan="5"><div class="empty">Loading…</div></td></tr></tbody>
-      </table>
+      <div class="card">
+        <div class="card-head"><div class="card-title">📋 Season History</div><button class="btn btn-ghost btn-sm" onclick="loadSeasons()">↻</button></div>
+        <div class="tbl-wrap"><table>
+          <thead><tr><th>#</th><th>Name</th><th>Status</th><th>Started</th><th>Ended</th></tr></thead>
+          <tbody id="seasons-body"><tr><td colspan="5"><div class="empty">Loading…</div></td></tr></tbody>
+        </table></div>
+      </div>
     </div>
   </div>
 
   <!-- GAMES -->
   <div class="page" id="page-games">
-    <div class="page-head"><h2>Game Assignments</h2></div>
+    <div class="page-head">
+      <div class="page-head-left"><h2>Game Assignments</h2><p>Assign games and maps to queue modes per server</p></div>
+    </div>
     <div class="card" style="margin-bottom:16px">
-      <div class="card-head"><div class="card-title">Server</div></div>
+      <div class="card-head"><div class="card-title">🖥️ Select Server</div></div>
       <div class="inline-form">
-        <div class="fg"><label>Select Server</label><select id="games-server-sel" onchange="loadGames(this.value)" style="width:260px"><option value="">— choose a server —</option></select></div>
+        <div class="fg"><label>Server</label><select id="games-server-sel" onchange="loadGames(this.value)" style="width:280px"><option value="">— choose a server —</option></select></div>
       </div>
     </div>
-    <div class="card" style="margin-bottom:16px" id="games-assign-card" style="display:none">
-      <div class="card-head"><div class="card-title">Assign Game to Mode</div></div>
-      <div class="inline-form">
-        <div class="fg"><label>Queue Mode</label><select id="ga-mode" style="width:140px"></select></div>
-        <div class="fg"><label>Game</label><select id="ga-game" style="width:200px"></select></div>
-        <button class="btn btn-primary" onclick="addGame()">Assign</button>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start">
+      <div class="card" id="games-assign-card">
+        <div class="card-head"><div class="card-title">➕ Assign Game</div></div>
+        <div class="inline-form" style="flex-direction:column;align-items:stretch;gap:12px">
+          <div class="fg"><label>Queue Mode</label><select id="ga-mode" style="width:100%"></select></div>
+          <div class="fg"><label>Game</label><select id="ga-game" style="width:100%"></select></div>
+          <button class="btn btn-primary" onclick="addGame()">Assign Game</button>
+        </div>
       </div>
-    </div>
-    <div class="card" id="games-list-card">
-      <div class="card-head"><div class="card-title">Current Assignments</div><button class="btn btn-ghost btn-sm" onclick="loadGames(document.getElementById('games-server-sel').value)">↻ Refresh</button></div>
-      <table>
-        <thead><tr><th>Queue Mode</th><th>Game</th><th>Maps</th><th></th></tr></thead>
-        <tbody id="games-body"><tr><td colspan="4"><div class="empty">Select a server above to view its game assignments.</div></td></tr></tbody>
-      </table>
+      <div class="card" id="games-list-card">
+        <div class="card-head"><div class="card-title">Current Assignments</div><button class="btn btn-ghost btn-sm" onclick="loadGames(document.getElementById('games-server-sel').value)">↻</button></div>
+        <div class="tbl-wrap"><table>
+          <thead><tr><th>Mode</th><th>Game</th><th>Maps</th><th></th></tr></thead>
+          <tbody id="games-body"><tr><td colspan="4"><div class="empty">Select a server first.</div></td></tr></tbody>
+        </table></div>
+      </div>
     </div>
   </div>
 
   <!-- MODES -->
   <div class="page" id="page-modes">
-    <h2>Queue Modes</h2>
-    <div class="card" style="margin-bottom:16px">
-      <div class="card-head"><div class="card-title">Add New Mode</div></div>
-      <div class="inline-form">
-        <div class="fg"><label>Mode ID</label><input id="mode-id" placeholder="e.g. 2v2" style="width:110px"/></div>
-        <div class="fg"><label>Display Name</label><input id="mode-name" placeholder="e.g. 2v2 Teams" style="width:160px"/></div>
-        <div class="fg"><label>Description</label><input id="mode-desc" placeholder="Optional" style="width:200px"/></div>
-        <button class="btn btn-primary" onclick="addMode()">Add Mode</button>
-      </div>
+    <div class="page-head">
+      <div class="page-head-left"><h2>Queue Modes</h2><p>Manage matchmaking modes available to players</p></div>
+      <button class="btn btn-ghost btn-sm" onclick="loadModes()">↻ Refresh</button>
     </div>
-    <div class="card">
-      <div class="card-head">
-        <div class="card-title">Active Modes</div>
-        <button class="btn btn-ghost btn-sm" onclick="loadModes()">↻ Refresh</button>
+    <div style="display:grid;grid-template-columns:1fr 2fr;gap:18px;align-items:start">
+      <div class="card">
+        <div class="card-head"><div class="card-title">➕ Add Mode</div></div>
+        <div class="card-body">
+          <div class="fg" style="margin-bottom:12px"><label>Mode ID</label><input id="mode-id" placeholder="e.g. 2v2" style="width:100%"/></div>
+          <div class="fg" style="margin-bottom:12px"><label>Display Name</label><input id="mode-name" placeholder="e.g. 2v2 Teams" style="width:100%"/></div>
+          <div class="fg" style="margin-bottom:16px"><label>Description</label><input id="mode-desc" placeholder="Optional" style="width:100%"/></div>
+          <button class="btn btn-primary" style="width:100%" onclick="addMode()">Add Mode</button>
+        </div>
       </div>
-      <table>
-        <thead><tr><th>Mode ID</th><th>Display Name</th><th>Description</th><th>Status</th><th></th></tr></thead>
-        <tbody id="modes-body"><tr><td colspan="5"><div class="empty">Loading…</div></td></tr></tbody>
-      </table>
+      <div class="card">
+        <div class="card-head"><div class="card-title">Active Modes</div></div>
+        <div class="tbl-wrap"><table>
+          <thead><tr><th>Mode ID</th><th>Display Name</th><th>Description</th><th>Status</th><th></th></tr></thead>
+          <tbody id="modes-body"><tr><td colspan="5"><div class="empty">Loading…</div></td></tr></tbody>
+        </table></div>
+      </div>
     </div>
   </div>
 
-  <!-- MY SERVERS (server admins + owner) -->
+  <!-- MY SERVERS -->
   <div class="page" id="page-myservers">
     <div class="page-head">
-      <div>
+      <div class="page-head-left">
         <h2 id="ms-title">My Servers</h2>
-        <div id="ms-breadcrumb" style="display:none;font-size:13px;color:var(--muted);margin-top:2px"></div>
+        <div id="ms-breadcrumb" style="display:none;font-size:13px;color:var(--muted);margin-top:3px"></div>
       </div>
       <div style="display:flex;gap:8px">
         <button id="ms-back-btn" class="btn btn-ghost btn-sm" onclick="backToMyServers()" style="display:none">← Back</button>
         <button class="btn btn-ghost btn-sm" onclick="loadMyServers()">↻ Refresh</button>
       </div>
     </div>
-    <!-- Server grid -->
-    <div id="ms-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:16px"></div>
-    <!-- Per-server management -->
+    <div id="ms-grid" class="server-grid"></div>
     <div id="ms-mgmt" style="display:none">
-      <div style="display:flex;gap:2px;margin-bottom:20px;border-bottom:1px solid var(--border)">
+      <div class="sub-tabs">
         <button class="tb active" data-sub="channels" onclick="showSubTab('channels',this)"><span class="tb-ico">📡</span>Channels</button>
         <button class="tb" data-sub="mssettings" onclick="showSubTab('mssettings',this)"><span class="tb-ico">⚙️</span>Settings</button>
         <button class="tb" data-sub="msgames" onclick="showSubTab('msgames',this)"><span class="tb-ico">🗺️</span>Games</button>
       </div>
-      <!-- Channels -->
       <div id="sub-channels" class="sub-page">
-        <div class="card"><div class="card-head"><div class="card-title">Channel Configuration</div></div>
-          <div class="inline-form">
-            <div class="fg"><label>Queue Channel ID</label><input id="sub-queue-ch" placeholder="Discord channel ID" style="width:210px"/></div>
-            <div class="fg"><label>Results Channel ID</label><input id="sub-results-ch" placeholder="Discord channel ID" style="width:210px"/></div>
-            <button class="btn btn-primary" onclick="saveSubChannels()">Save</button>
+        <div class="card"><div class="card-head"><div class="card-title">📡 Channel Configuration</div></div>
+          <div class="card-body">
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:16px">
+              <div class="fg"><label>Queue Channel ID</label><input id="sub-queue-ch" placeholder="Discord channel ID" style="width:100%"/></div>
+              <div class="fg"><label>Results Channel ID</label><input id="sub-results-ch" placeholder="Discord channel ID" style="width:100%"/></div>
+            </div>
+            <button class="btn btn-primary" onclick="saveSubChannels()">Save Channels</button>
           </div>
         </div>
       </div>
-      <!-- Settings -->
       <div id="sub-mssettings" class="sub-page" style="display:none">
-        <div class="card"><div class="card-head"><div class="card-title">Match Settings</div></div>
-          <div class="card-body" style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
-            <div class="fg"><label>Score Mode</label><select id="sub-score-mode" style="width:100%"><option value="0">Off (Win/Lose buttons)</option><option value="1">On (Enter final score)</option></select></div>
-            <div class="fg"><label>Require Evidence</label><select id="sub-req-ev" style="width:100%"><option value="0">No</option><option value="1">Yes (screenshot URL)</option></select></div>
-            <div class="fg"><label>Rounds per Match</label><input id="sub-rounds" type="number" min="1" placeholder="e.g. 3" style="width:100%"/></div>
-            <div class="fg"><label>Rematch Cooldown (min)</label><input id="sub-cooldown" type="number" min="0" placeholder="0 = off" style="width:100%"/></div>
-            <div class="fg"><label>Anonymous Queue</label><select id="sub-anon" style="width:100%"><option value="0">Off</option><option value="1">On</option></select></div>
+        <div class="card"><div class="card-head"><div class="card-title">⚙️ Match Settings</div></div>
+          <div class="card-body">
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:16px">
+              <div class="fg"><label>Score Mode</label><select id="sub-score-mode" style="width:100%"><option value="0">Off — Win/Lose buttons</option><option value="1">On — Enter final score</option></select></div>
+              <div class="fg"><label>Require Evidence</label><select id="sub-req-ev" style="width:100%"><option value="0">No</option><option value="1">Yes — screenshot URL</option></select></div>
+              <div class="fg"><label>Rounds per Match</label><input id="sub-rounds" type="number" min="1" placeholder="e.g. 3" style="width:100%"/></div>
+              <div class="fg"><label>Rematch Cooldown (min)</label><input id="sub-cooldown" type="number" min="0" placeholder="0 = off" style="width:100%"/></div>
+              <div class="fg"><label>Anonymous Queue</label><select id="sub-anon" style="width:100%"><option value="0">Off</option><option value="1">On — hide names until ready</option></select></div>
+            </div>
+            <button class="btn btn-primary" onclick="saveSubSettings()">Save Settings</button>
           </div>
-          <div style="padding:0 20px 16px"><button class="btn btn-primary" onclick="saveSubSettings()">Save Settings</button></div>
         </div>
       </div>
-      <!-- Games -->
       <div id="sub-msgames" class="sub-page" style="display:none">
-        <div class="card" style="margin-bottom:16px"><div class="card-head"><div class="card-title">Assign Game to Mode</div></div>
-          <div class="inline-form">
-            <div class="fg"><label>Queue Mode</label><select id="sub-ga-mode" style="width:140px"></select></div>
-            <div class="fg"><label>Game</label><select id="sub-ga-game" style="width:200px"></select></div>
-            <button class="btn btn-primary" onclick="addSubGame()">Assign</button>
+        <div style="display:grid;grid-template-columns:1fr 1.5fr;gap:16px;align-items:start">
+          <div class="card"><div class="card-head"><div class="card-title">➕ Assign Game</div></div>
+            <div class="card-body">
+              <div class="fg" style="margin-bottom:12px"><label>Queue Mode</label><select id="sub-ga-mode" style="width:100%"></select></div>
+              <div class="fg" style="margin-bottom:16px"><label>Game</label><select id="sub-ga-game" style="width:100%"></select></div>
+              <button class="btn btn-primary" style="width:100%" onclick="addSubGame()">Assign</button>
+            </div>
           </div>
-        </div>
-        <div class="card"><div class="card-head"><div class="card-title">Current Assignments</div></div>
-          <table><thead><tr><th>Mode</th><th>Game</th><th>Maps</th><th></th></tr></thead>
-          <tbody id="sub-games-body"><tr><td colspan="4"><div class="empty">No games assigned.</div></td></tr></tbody></table>
+          <div class="card"><div class="card-head"><div class="card-title">Current Assignments</div></div>
+            <div class="tbl-wrap"><table><thead><tr><th>Mode</th><th>Game</th><th>Maps</th><th></th></tr></thead>
+            <tbody id="sub-games-body"><tr><td colspan="4"><div class="empty">No games assigned.</div></td></tr></tbody></table></div>
+          </div>
         </div>
       </div>
     </div>
@@ -1401,29 +1566,32 @@ code.pill{background:rgba(124,58,237,.12);color:#c084fc;padding:2px 7px;border-r
   <!-- CONSOLE (owner only) -->
   <div class="page" id="page-console">
     <div class="page-head">
-      <h2>Console</h2>
-      <select id="con-guild-sel" onchange="loadConChannels(this.value)" style="width:240px;background:var(--bg3);border:1px solid var(--border);border-radius:var(--r);padding:7px 11px;font-size:13px;color:var(--text);font-family:inherit;outline:none;transition:border-color .15s">
-        <option value="">Select server…</option>
+      <div class="page-head-left"><h2>Console</h2><p>Read and send messages in any server channel</p></div>
+      <select id="con-guild-sel" onchange="loadConChannels(this.value)" style="width:260px">
+        <option value="">Select a server…</option>
       </select>
     </div>
-    <div style="display:flex;gap:12px;height:calc(100vh - 210px);min-height:420px">
-      <div style="width:196px;flex-shrink:0;background:var(--bg2);border:1px solid var(--border);border-radius:var(--r2);overflow-y:auto;padding:8px 0">
-        <div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.8px;padding:8px 14px 6px">Channels</div>
-        <div id="con-channel-list"><div style="padding:8px 14px;font-size:12px;color:var(--muted)">Select a server</div></div>
+    <div class="console-wrap">
+      <div class="console-sidebar">
+        <div class="console-sidebar-head">Channels</div>
+        <div id="con-channel-list"><div style="padding:12px;font-size:12px;color:var(--muted)">Select a server above</div></div>
       </div>
-      <div style="flex:1;display:flex;flex-direction:column;background:var(--bg2);border:1px solid var(--border);border-radius:var(--r2);overflow:hidden">
-        <div id="con-channel-label" style="padding:12px 16px;border-bottom:1px solid var(--border);font-size:13px;font-weight:600;color:var(--muted)"># select a channel</div>
-        <div id="con-messages" style="flex:1;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:10px">
-          <div class="empty">Select a server and channel to view messages.</div>
+      <div class="console-main">
+        <div class="console-topbar">
+          <div class="console-ch-label"><span>#</span><span id="con-channel-label">select a channel</span></div>
         </div>
-        <div style="padding:12px 16px;border-top:1px solid var(--border);display:flex;gap:8px">
-          <input id="con-input" placeholder="Send as Syntrix…" style="flex:1" onkeydown="if(event.key==='Enter')consoleSend()"/>
+        <div class="con-messages" id="con-messages">
+          <div class="empty"><span class="empty-icon">💬</span>Select a server and channel to view messages.</div>
+        </div>
+        <div class="con-input-bar">
+          <input id="con-input" placeholder="Send a message as Syntrix…" onkeydown="if(event.key==='Enter')consoleSend()"/>
           <button class="btn btn-primary" onclick="consoleSend()">Send</button>
         </div>
       </div>
     </div>
   </div>
 
+</div>
 </div>
 
 <!-- Server Settings Modal -->
@@ -1491,11 +1659,13 @@ function toast(msg,ok=true){
   t.className='toast '+(ok?'ok':'err');t.classList.add('show');
   setTimeout(()=>t.classList.remove('show'),3200);
 }
+const TAB_TITLES={overview:'Overview',servers:'Servers',players:'Players',premium:'Premium',seasons:'Seasons',modes:'Queue Modes',games:'Games',myservers:'My Servers',console:'Console'};
 function showTab(name,el){
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
   document.querySelectorAll('.tb').forEach(b=>b.classList.remove('active'));
   document.getElementById('page-'+name).classList.add('active');
   el.classList.add('active');
+  const tt=document.getElementById('topbar-title');if(tt)tt.textContent=TAB_TITLES[name]||name;
   if(name==='overview')loadOverview();
   if(name==='servers')loadServers();
   if(name==='players')loadPlayers();
@@ -1738,20 +1908,17 @@ let _msServerId = null;
 async function initDashboard(){
   _me = await api('/api/me');
   if(_me.error){window.location='/dashboard/login';return}
+  document.getElementById('myservers-section').style.display='';
   if(_me.is_owner){
-    document.getElementById('tab-console').style.display='';
+    document.getElementById('console-section').style.display='';
     loadOverview();
   } else {
-    // Hide all owner-only tabs, show My Servers
-    ['overview','servers','players','premium','seasons','modes','games'].forEach(t=>{
-      const el=document.getElementById('tab-'+t);
-      if(el)el.style.display='none';
-    });
-    document.getElementById('tab-myservers').style.display='';
+    const bms=document.getElementById('bot-mgmt-section');if(bms)bms.style.display='none';
     document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
     document.querySelectorAll('.tb').forEach(b=>b.classList.remove('active'));
     document.getElementById('page-myservers').classList.add('active');
     document.getElementById('tab-myservers').classList.add('active');
+    const tt=document.getElementById('topbar-title');if(tt)tt.textContent='My Servers';
     loadMyServers();
   }
 }
@@ -1769,10 +1936,10 @@ async function loadMyServers(){
   if(!d||!d.length){grid.innerHTML='<div class="empty">No servers found. Make sure Syntrix is in your server and you have Manage Server permission.</div>';return}
   grid.innerHTML=d.map(s=>{
     const ini=s.name?s.name[0].toUpperCase():'?';
-    return`<div style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--r2);padding:20px;display:flex;flex-direction:column;gap:12px;transition:border-color .2s" onmouseenter="this.style.borderColor='rgba(124,58,237,.5)'" onmouseleave="this.style.borderColor='var(--border)'">
-      <div style="display:flex;align-items:center;gap:12px">
-        <div style="width:44px;height:44px;border-radius:50%;background:linear-gradient(135deg,#7c3aed,#a855f7);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:18px;flex-shrink:0">${esc(ini)}</div>
-        <div><div style="font-weight:700;font-size:14px">${esc(s.name)}</div><div style="font-size:11px;color:var(--muted)">${(s.member_count||0).toLocaleString()} members</div></div>
+    return`<div class="server-card">
+      <div class="server-card-head">
+        <div class="server-icon">${esc(ini)}</div>
+        <div><div class="server-name">${esc(s.name)}</div><div class="server-meta">${(s.member_count||0).toLocaleString()} members</div></div>
       </div>
       <button class="btn btn-primary btn-sm" onclick="openMyServer(${s.guild_id},'${esc(s.name)}')">Manage →</button>
     </div>`;
@@ -1866,8 +2033,8 @@ async function loadConChannels(guildId){
   let cat='';
   list.innerHTML=d.map(ch=>{
     let html='';
-    if(ch.category&&ch.category!==cat){cat=ch.category;html+=`<div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.6px;padding:10px 14px 4px">${esc(cat)}</div>`}
-    html+=`<div onclick="loadConMessages('${ch.id}','${esc(ch.name)}')" style="padding:5px 14px;font-size:13px;color:var(--text2);cursor:pointer;border-radius:var(--r);margin:0 4px;transition:all .1s" id="conch-${ch.id}" onmouseenter="this.style.background='rgba(255,255,255,.06)'" onmouseleave="this.style.background=_conChannelId===this.dataset.id?'rgba(124,58,237,.15)':''" data-id="${ch.id}"><span style="color:var(--muted);margin-right:4px">#</span>${esc(ch.name)}</div>`;
+    if(ch.category&&ch.category!==cat){cat=ch.category;html+=`<div class="con-ch-cat">${esc(cat)}</div>`}
+    html+=`<div class="con-ch-item" id="conch-${ch.id}" data-id="${ch.id}" onclick="loadConMessages('${ch.id}','${esc(ch.name)}')"><span style="color:var(--muted)">#</span>${esc(ch.name)}</div>`;
     return html;
   }).join('');
 }
@@ -1882,18 +2049,15 @@ async function loadConMessages(channelId,channelName){
   feed.innerHTML=msgs.map(m=>{
     const ini=m.author.name?m.author.name[0].toUpperCase():'?';
     const t=new Date(m.timestamp+(m.timestamp.endsWith('Z')?'':'Z')).toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'});
-    const botBadge=m.author.bot?'<span style="font-size:9px;background:#5865f2;color:#fff;padding:1px 5px;border-radius:3px;font-weight:700;margin-left:4px">BOT</span>':'';
-    const aColor=m.author.bot?'#5865f2':'var(--accent)';
-    const att=m.attachments.length?`<div style="font-size:11px;color:var(--muted);margin-top:2px">📎 ${m.attachments.map(a=>`<a href="${esc(a.url)}" target="_blank" style="color:var(--accent2)">${esc(a.filename)}</a>`).join(', ')}</div>`:'';
-    const embeds=m.embeds?`<div style="font-size:11px;color:var(--muted);margin-top:2px">[${m.embeds} embed${m.embeds!==1?'s':''}]</div>`:'';
-    return`<div style="display:flex;gap:10px;padding:2px 0">
-      <div style="width:34px;height:34px;border-radius:50%;background:${aColor};display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;flex-shrink:0">${esc(ini)}</div>
-      <div style="flex:1;min-width:0">
-        <div style="display:flex;align-items:baseline;gap:6px">
-          <span style="font-weight:600;font-size:13px">${esc(m.author.name)}</span>${botBadge}
-          <span style="font-size:11px;color:var(--muted)">${t}</span>
-        </div>
-        <div style="font-size:13px;color:var(--text2);margin-top:1px;word-break:break-word;white-space:pre-wrap">${esc(m.content)||'<span style="color:var(--muted);font-style:italic">no text content</span>'}</div>
+    const botBadge=m.author.bot?'<span class="con-bot-badge">BOT</span>':'';
+    const avBg=m.author.bot?'background:#5865f2':'background:var(--accent)';
+    const att=m.attachments.length?`<div style="font-size:11px;color:var(--muted);margin-top:3px">📎 ${m.attachments.map(a=>`<a href="${esc(a.url)}" target="_blank" style="color:var(--accent2)">${esc(a.filename)}</a>`).join(', ')}</div>`:'';
+    const embeds=m.embeds?`<div style="font-size:11px;color:var(--muted);margin-top:3px">[${m.embeds} embed${m.embeds!==1?'s':''}]</div>`:'';
+    return`<div class="con-msg">
+      <div class="con-avatar" style="${avBg}">${esc(ini)}</div>
+      <div class="con-msg-body">
+        <div class="con-msg-header"><span class="con-msg-name">${esc(m.author.name)}</span>${botBadge}<span class="con-msg-time">${t}</span></div>
+        <div class="con-msg-content">${esc(m.content)||'<span style="color:var(--muted);font-style:italic">no text content</span>'}</div>
         ${att}${m.embeds?embeds:''}
       </div>
     </div>`;
