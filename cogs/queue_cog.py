@@ -92,11 +92,56 @@ class QueueCog(commands.Cog):
             star = "⭐ " if premium else ""
             lines.append(f"`{i}.` {star}**{e['username']}** — ELO {e['elo_at_join']} · `{e['mode']}`")
 
+        mode_label = mode or "all modes"
+        join_hint = f"`/join{' mode:' + mode if mode else ''}`"
         embed = discord.Embed(
             title=f"Matchmaking Queue ({len(entries)} player{'s' if len(entries) != 1 else ''})",
             description="\n".join(lines),
             color=discord.Color.blue(),
         )
+        embed.add_field(
+            name="Want to play?",
+            value=f"Type {join_hint} to jump in and get matched!",
+            inline=False,
+        )
+        embed.set_footer(text=f"Showing: {mode_label}  •  Syntrix Global Matchmaking")
+        await interaction.response.send_message(embed=embed)
+
+    @app_commands.command(name="recruit", description="Post a public embed encouraging others to join a queue")
+    @app_commands.describe(mode="Queue mode to recruit for (default: ranked)")
+    @app_commands.autocomplete(mode=mode_autocomplete)
+    async def recruit(self, interaction: discord.Interaction, mode: str = "ranked"):
+        mode_data = await db.get_queue_mode(mode)
+        if not mode_data:
+            await interaction.response.send_message(
+                f"Unknown mode `{mode}`. Use `/modes` to see available modes.", ephemeral=True
+            )
+            return
+
+        entries = await db.get_all_queue(mode=mode)
+        count = len(entries)
+        mode_name = mode_data["display_name"]
+
+        if count == 0:
+            status = "The queue is empty — be the first in!"
+        elif count == 1:
+            status = f"**1 player** is already waiting. Jump in and get matched instantly!"
+        else:
+            status = f"**{count} players** are waiting. Join now for a fast match!"
+
+        embed = discord.Embed(
+            title=f"🎮 {mode_name} Queue is Open!",
+            description=(
+                f"{status}\n\n"
+                f"Type `/join mode:{mode}` to enter the queue and get matched by ELO.\n"
+                f"Ready checks are sent via DM — make sure your DMs are open."
+            ),
+            color=discord.Color.from_str("#7c3aed"),
+        )
+        embed.add_field(name="Mode", value=mode_name, inline=True)
+        embed.add_field(name="In Queue", value=str(count), inline=True)
+        embed.add_field(name="How to Join", value=f"`/join mode:{mode}`", inline=True)
+        embed.set_footer(text="Syntrix Global Matchmaking  •  ELO-based fair matches")
         await interaction.response.send_message(embed=embed)
 
     @app_commands.command(name="modes", description="List all available queue modes")
