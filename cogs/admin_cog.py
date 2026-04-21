@@ -398,7 +398,7 @@ class AdminGroup(app_commands.Group, name="admin", description="Admin-only playe
         embed.add_field(name="Game Assignments", value=game_lines, inline=False)
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
-    @admin_group.command(name="addrank", description="Add a custom rank tier for this server (server premium required)")
+    @app_commands.command(name="addrank", description="Add a custom rank tier for this server (server premium required)")
     @app_commands.describe(min_elo="Minimum ELO for this rank", name="Rank name", emoji="Emoji prefix (optional)")
     async def add_rank(self, interaction: discord.Interaction, min_elo: app_commands.Range[int, 0, 9999], name: str, emoji: str = ""):
         if not self._check(interaction):
@@ -414,7 +414,7 @@ class AdminGroup(app_commands.Group, name="admin", description="Admin-only playe
         display = f"{emoji} {name}" if emoji else name
         await interaction.response.send_message(f"Rank **{display}** added at ≥{min_elo} ELO.", ephemeral=True)
 
-    @admin_group.command(name="removerank", description="Remove a custom rank tier")
+    @app_commands.command(name="removerank", description="Remove a custom rank tier")
     @app_commands.describe(min_elo="The minimum ELO of the rank to remove")
     async def remove_rank(self, interaction: discord.Interaction, min_elo: int):
         if not self._check(interaction):
@@ -426,7 +426,7 @@ class AdminGroup(app_commands.Group, name="admin", description="Admin-only playe
         await db.remove_server_rank(interaction.guild_id, min_elo)
         await interaction.response.send_message(f"Rank at ≥{min_elo} ELO removed.", ephemeral=True)
 
-    @admin_group.command(name="listranks", description="Show this server's custom rank tiers")
+    @app_commands.command(name="listranks", description="Show this server's custom rank tiers")
     async def list_ranks(self, interaction: discord.Interaction):
         if not self._check(interaction):
             await interaction.response.send_message("Not authorised.", ephemeral=True)
