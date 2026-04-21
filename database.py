@@ -133,6 +133,8 @@ async def init_db():
 
         # Schema migrations — safe to run repeatedly
         _migrations = [
+            "ALTER TABLE server_config ADD COLUMN queue_panel_msg_id INTEGER",
+            "ALTER TABLE server_config ADD COLUMN match_log_msg_id INTEGER",
             "ALTER TABLE server_config ADD COLUMN require_evidence INTEGER DEFAULT 0",
             "ALTER TABLE server_config ADD COLUMN score_mode INTEGER DEFAULT 0",
             "ALTER TABLE server_config ADD COLUMN rematch_cooldown INTEGER DEFAULT 0",
@@ -859,3 +861,48 @@ async def get_server_stats(server_id: int) -> dict:
         ) as cur:
             row["unique_players"] = (await cur.fetchone())["unique_players"]
         return row
+
+
+# ── Panel helpers ─────────────────────────────────────────────────────────────
+
+async def get_recent_matches(limit: int = 15) -> list[dict]:
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        async with db.execute(
+            """SELECT m.*,
+                 p1.username AS p1_name,
+                 p2.username AS p2_name,
+                 pw.username AS winner_name
+               FROM matches m
+               JOIN players p1 ON m.player1_id = p1.discord_id
+               JOIN players p2 ON m.player2_id = p2.discord_id
+               LEFT JOIN players pw ON m.winner_id = pw.discord_id
+               ORDER BY
+                 CASE WHEN m.status IN ('active','pending') THEN 0 ELSE 1 END,
+                 m.created_at DESC
+               LIMIT ?""",
+            (limit,),
+        ) as cur:
+            return [dict(r) for r in await cur.fetchall()]
+
+
+async def get_servers_with_queue_panels() -> list[dict]:
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        async with db.execute(
+            """SELECT server_id, queue_channel_id, queue_panel_msg_id
+               FROM server_config
+               WHERE queue_panel_msg_id IS NOT NULL AND queue_channel_id IS NOT NULL"""
+        ) as cur:
+            return [dict(r) for r in await cur.fetchall()]
+
+
+async def get_servers_with_match_logs() -> list[dict]:
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        async with db.execute(
+            """SELECT server_id, results_channel_id, match_log_msg_id
+               FROM server_config
+               WHERE match_log_msg_id IS NOT NULL AND results_channel_id IS NOT NULL"""
+        ) as cur:
+            return [dict(r) for r in await cur.fetchall()]

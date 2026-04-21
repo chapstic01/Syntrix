@@ -26,13 +26,28 @@ def is_bot_admin(interaction: discord.Interaction) -> bool:
     return interaction.user.id == ADMIN_USER_ID
 
 
-class AdminGroup(app_commands.Group, name="admin", description="Admin-only player management"):
+def is_server_admin(interaction: discord.Interaction) -> bool:
+    """Bot owner OR server owner OR Discord Administrator permission."""
+    if interaction.user.id == ADMIN_USER_ID:
+        return True
+    if not interaction.guild:
+        return False
+    member = interaction.guild.get_member(interaction.user.id)
+    if not member:
+        return False
+    return member.guild_permissions.administrator or interaction.user.id == interaction.guild.owner_id
+
+
+class AdminGroup(app_commands.Group, name="admin", description="Server and bot administration"):
     def __init__(self, bot):
         super().__init__()
         self.bot = bot
 
     def _check(self, interaction: discord.Interaction) -> bool:
         return is_bot_admin(interaction)
+
+    def _server_check(self, interaction: discord.Interaction) -> bool:
+        return is_server_admin(interaction)
 
     @app_commands.command(name="setelo", description="Set a player's ELO directly")
     @app_commands.describe(user="Target player", elo="New ELO value")
@@ -59,7 +74,7 @@ class AdminGroup(app_commands.Group, name="admin", description="Admin-only playe
     @app_commands.command(name="ban", description="Ban a player from matchmaking in this server")
     @app_commands.describe(user="Player to ban", reason="Reason for ban")
     async def ban_player(self, interaction: discord.Interaction, user: discord.User, reason: str = ""):
-        if not self._check(interaction):
+        if not self._server_check(interaction):
             await interaction.response.send_message("Not authorised.", ephemeral=True)
             return
         if not interaction.guild_id:
@@ -75,7 +90,7 @@ class AdminGroup(app_commands.Group, name="admin", description="Admin-only playe
     @app_commands.command(name="unban", description="Unban a player in this server")
     @app_commands.describe(user="Player to unban")
     async def unban_player(self, interaction: discord.Interaction, user: discord.User):
-        if not self._check(interaction):
+        if not self._server_check(interaction):
             await interaction.response.send_message("Not authorised.", ephemeral=True)
             return
         if not interaction.guild_id:
@@ -116,16 +131,16 @@ class AdminGroup(app_commands.Group, name="admin", description="Admin-only playe
     @app_commands.command(name="removequeue", description="Remove a player from the queue")
     @app_commands.describe(user="Player to remove")
     async def remove_queue(self, interaction: discord.Interaction, user: discord.User):
-        if not self._check(interaction):
+        if not self._server_check(interaction):
             await interaction.response.send_message("Not authorised.", ephemeral=True)
             return
         await db.dequeue(user.id)
         await interaction.response.send_message(f"Removed {user} from the queue.", ephemeral=True)
 
-    @app_commands.command(name="setup", description="Configure the bot for this server")
+    @app_commands.command(name="setup", description="Configure channels for this server (or view current setup)")
     @app_commands.describe(
-        queue_channel="Channel for queue updates",
-        results_channel="Channel for match results",
+        queue_channel="Channel for the live queue panel",
+        results_channel="Channel for match results and match log",
     )
     async def setup_server(
         self,
@@ -133,12 +148,13 @@ class AdminGroup(app_commands.Group, name="admin", description="Admin-only playe
         queue_channel: discord.TextChannel = None,
         results_channel: discord.TextChannel = None,
     ):
-        if not self._check(interaction):
-            await interaction.response.send_message("Not authorised.", ephemeral=True)
+        if not self._server_check(interaction):
+            await interaction.response.send_message("Not authorised. You must be a server admin or the bot owner.", ephemeral=True)
             return
         if not interaction.guild_id:
             await interaction.response.send_message("Must be used in a server.", ephemeral=True)
             return
+
         kwargs = {}
         if queue_channel:
             kwargs["queue_channel_id"] = queue_channel.id
@@ -146,7 +162,72 @@ class AdminGroup(app_commands.Group, name="admin", description="Admin-only playe
             kwargs["results_channel_id"] = results_channel.id
         if kwargs:
             await db.update_server_config(interaction.guild_id, **kwargs)
-        await interaction.response.send_message("Server config updated.", ephemeral=True)
+
+        cfg = await db.get_server_config(interaction.guild_id)
+
+        def ch(cid):
+            if not cid:
+                return "❌ Not set"
+            c = interaction.guild.get_channel(cid)
+            return c.mention if c else f"❌ Unknown (`{cid}`)"
+
+        def flag(val, on="✅ On", off="⚫ Off"):
+            return on if val else off
+
+        queue_ch = ch(cfg.get("queue_channel_id"))
+        results_ch = ch(cfg.get("results_channel_id"))
+        update_ch = ch(cfg.get("update_channel_id"))
+        category = ch(cfg.get("match_category_id"))
+
+        panel_set = "✅ Active" if cfg.get("queue_panel_msg_id") else "❌ Not posted — run `/admin postpanel`"
+        log_set = "✅ Active" if cfg.get("match_log_msg_id") else "❌ Not posted — run `/admin postmatchlog`"
+
+        embed = discord.Embed(
+            title=f"⚙️ Server Setup — {interaction.guild.name}",
+            color=discord.Color.from_str("#7c3aed"),
+        )
+        embed.add_field(
+            name="📢 Channels",
+            value=(
+                f"Queue: {queue_ch}\n"
+                f"Results: {results_ch}\n"
+                f"Updates: {update_ch}\n"
+                f"Match Category: {category}"
+            ),
+            inline=True,
+        )
+        embed.add_field(
+            name="📋 Live Panels",
+            value=f"Queue Panel: {panel_set}\nMatch Log: {log_set}",
+            inline=True,
+        )
+        embed.add_field(
+            name="🎮 Match Settings",
+            value=(
+                f"Score Mode: {flag(cfg.get('score_mode'))}\n"
+                f"Require Evidence: {flag(cfg.get('require_evidence'))}\n"
+                f"Anonymous Queue: {flag(cfg.get('anonymous_queue'))}\n"
+                f"Server Premium: {flag(cfg.get('server_premium'))}"
+            ),
+            inline=False,
+        )
+
+        next_steps = []
+        if not cfg.get("queue_channel_id"):
+            next_steps.append("• `/admin setup queue_channel:#channel` — set queue channel")
+        if not cfg.get("results_channel_id"):
+            next_steps.append("• `/admin setup results_channel:#channel` — set results channel")
+        if cfg.get("queue_channel_id") and not cfg.get("queue_panel_msg_id"):
+            next_steps.append("• `/admin postpanel` — post the live queue panel")
+        if cfg.get("results_channel_id") and not cfg.get("match_log_msg_id"):
+            next_steps.append("• `/admin postmatchlog` — post the live match log")
+
+        if next_steps:
+            embed.add_field(name="📌 Next Steps", value="\n".join(next_steps), inline=False)
+        else:
+            embed.add_field(name="✅ All set!", value="Everything is configured and running.", inline=False)
+
+        await interaction.response.send_message(embed=embed, ephemeral=True)
 
     # ── Premium management ────────────────────────────────────────────────────
 
@@ -203,7 +284,7 @@ class AdminGroup(app_commands.Group, name="admin", description="Admin-only playe
     @app_commands.describe(mode="Queue mode to configure", game="Game to assign")
     @app_commands.autocomplete(mode=mode_autocomplete, game=game_autocomplete)
     async def set_game(self, interaction: discord.Interaction, mode: str, game: str):
-        if not self._check(interaction):
+        if not self._server_check(interaction):
             await interaction.response.send_message("Not authorised.", ephemeral=True)
             return
         if not interaction.guild_id:
@@ -237,7 +318,7 @@ class AdminGroup(app_commands.Group, name="admin", description="Admin-only playe
     @app_commands.describe(mode="Queue mode to clear")
     @app_commands.autocomplete(mode=mode_autocomplete)
     async def remove_game(self, interaction: discord.Interaction, mode: str):
-        if not self._check(interaction):
+        if not self._server_check(interaction):
             await interaction.response.send_message("Not authorised.", ephemeral=True)
             return
         if not interaction.guild_id:
@@ -248,7 +329,7 @@ class AdminGroup(app_commands.Group, name="admin", description="Admin-only playe
 
     @app_commands.command(name="listgames", description="List game assignments for this server")
     async def list_games(self, interaction: discord.Interaction):
-        if not self._check(interaction):
+        if not self._server_check(interaction):
             await interaction.response.send_message("Not authorised.", ephemeral=True)
             return
         if not interaction.guild_id:
@@ -270,7 +351,7 @@ class AdminGroup(app_commands.Group, name="admin", description="Admin-only playe
     @app_commands.command(name="scoremode", description="Toggle score-based result reporting (instead of Win/Loss buttons)")
     @app_commands.describe(enabled="True to enable score reporting")
     async def score_mode(self, interaction: discord.Interaction, enabled: bool):
-        if not self._check(interaction):
+        if not self._server_check(interaction):
             await interaction.response.send_message("Not authorised.", ephemeral=True)
             return
         if not interaction.guild_id:
@@ -283,7 +364,7 @@ class AdminGroup(app_commands.Group, name="admin", description="Admin-only playe
     @app_commands.command(name="requireevidence", description="Require players to submit a screenshot URL when reporting scores")
     @app_commands.describe(enabled="True to require evidence")
     async def require_evidence(self, interaction: discord.Interaction, enabled: bool):
-        if not self._check(interaction):
+        if not self._server_check(interaction):
             await interaction.response.send_message("Not authorised.", ephemeral=True)
             return
         if not interaction.guild_id:
@@ -296,7 +377,7 @@ class AdminGroup(app_commands.Group, name="admin", description="Admin-only playe
     @app_commands.command(name="setrounds", description="Set the target number of rounds per match (0 = unlimited)")
     @app_commands.describe(rounds="Target rounds (e.g. 16 for first to 16). Set 0 to disable.")
     async def set_rounds(self, interaction: discord.Interaction, rounds: app_commands.Range[int, 0, 999]):
-        if not self._check(interaction):
+        if not self._server_check(interaction):
             await interaction.response.send_message("Not authorised.", ephemeral=True)
             return
         if not interaction.guild_id:
@@ -309,7 +390,7 @@ class AdminGroup(app_commands.Group, name="admin", description="Admin-only playe
     @app_commands.command(name="rematchcooldown", description="Set how long (minutes) before two players can be matched again")
     @app_commands.describe(minutes="Cooldown in minutes. Set 0 to disable.")
     async def rematch_cooldown(self, interaction: discord.Interaction, minutes: app_commands.Range[int, 0, 1440]):
-        if not self._check(interaction):
+        if not self._server_check(interaction):
             await interaction.response.send_message("Not authorised.", ephemeral=True)
             return
         if not interaction.guild_id:
@@ -322,7 +403,7 @@ class AdminGroup(app_commands.Group, name="admin", description="Admin-only playe
     @app_commands.command(name="anonymous", description="Toggle anonymous queue — hides player names until both are ready")
     @app_commands.describe(enabled="True to enable anonymous mode")
     async def anonymous_queue(self, interaction: discord.Interaction, enabled: bool):
-        if not self._check(interaction):
+        if not self._server_check(interaction):
             await interaction.response.send_message("Not authorised.", ephemeral=True)
             return
         if not interaction.guild_id:
@@ -335,7 +416,7 @@ class AdminGroup(app_commands.Group, name="admin", description="Admin-only playe
     @app_commands.command(name="matchcategory", description="Set the category where match voice/text channels are created")
     @app_commands.describe(category="Category channel for match rooms")
     async def match_category(self, interaction: discord.Interaction, category: discord.CategoryChannel):
-        if not self._check(interaction):
+        if not self._server_check(interaction):
             await interaction.response.send_message("Not authorised.", ephemeral=True)
             return
         if not interaction.guild_id:
@@ -349,7 +430,7 @@ class AdminGroup(app_commands.Group, name="admin", description="Admin-only playe
     @app_commands.command(name="setupdate", description="Set the channel where bot update announcements are posted")
     @app_commands.describe(channel="Channel to receive Syntrix update announcements")
     async def set_update_channel(self, interaction: discord.Interaction, channel: discord.TextChannel):
-        if not self._check(interaction):
+        if not self._server_check(interaction):
             await interaction.response.send_message("Not authorised.", ephemeral=True)
             return
         if not interaction.guild_id:
@@ -375,7 +456,7 @@ class AdminGroup(app_commands.Group, name="admin", description="Admin-only playe
 
     @app_commands.command(name="serversettings", description="Show all current matchmaking settings for this server")
     async def server_settings(self, interaction: discord.Interaction):
-        if not self._check(interaction):
+        if not self._server_check(interaction):
             await interaction.response.send_message("Not authorised.", ephemeral=True)
             return
         if not interaction.guild_id:
@@ -398,13 +479,68 @@ class AdminGroup(app_commands.Group, name="admin", description="Admin-only playe
         embed.add_field(name="Game Assignments", value=game_lines, inline=False)
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
+    @app_commands.command(name="postpanel", description="Post the live queue panel in the queue channel")
+    async def post_panel(self, interaction: discord.Interaction):
+        if not self._server_check(interaction):
+            await interaction.response.send_message("Not authorised.", ephemeral=True)
+            return
+        if not interaction.guild_id:
+            await interaction.response.send_message("Must be used in a server.", ephemeral=True)
+            return
+        cfg = await db.get_server_config(interaction.guild_id)
+        channel_id = cfg.get("queue_channel_id")
+        if not channel_id:
+            await interaction.response.send_message(
+                "No queue channel set. Run `/admin setup queue_channel:#channel` first.", ephemeral=True
+            )
+            return
+        channel = interaction.guild.get_channel(channel_id)
+        if not channel:
+            await interaction.response.send_message("Queue channel not found in this server.", ephemeral=True)
+            return
+        await interaction.response.defer(ephemeral=True)
+        panel_cog = interaction.client.get_cog("PanelCog")
+        if not panel_cog:
+            await interaction.followup.send("Panel system not loaded.", ephemeral=True)
+            return
+        msg = await panel_cog.post_panel_for_guild(interaction.guild, channel)
+        await interaction.followup.send(f"Queue panel posted in {channel.mention} (message `{msg.id}`).", ephemeral=True)
+
+    @app_commands.command(name="postmatchlog", description="Post the live match log in the results channel")
+    async def post_match_log(self, interaction: discord.Interaction):
+        if not self._server_check(interaction):
+            await interaction.response.send_message("Not authorised.", ephemeral=True)
+            return
+        if not interaction.guild_id:
+            await interaction.response.send_message("Must be used in a server.", ephemeral=True)
+            return
+        cfg = await db.get_server_config(interaction.guild_id)
+        channel_id = cfg.get("results_channel_id")
+        if not channel_id:
+            await interaction.response.send_message(
+                "No results channel set. Run `/admin setup results_channel:#channel` first.", ephemeral=True
+            )
+            return
+        channel = interaction.guild.get_channel(channel_id)
+        if not channel:
+            await interaction.response.send_message("Results channel not found in this server.", ephemeral=True)
+            return
+        await interaction.response.defer(ephemeral=True)
+        panel_cog = interaction.client.get_cog("PanelCog")
+        if not panel_cog:
+            await interaction.followup.send("Panel system not loaded.", ephemeral=True)
+            return
+        msg = await panel_cog.post_match_log_for_guild(interaction.guild, channel)
+        await interaction.followup.send(f"Match log posted in {channel.mention} (message `{msg.id}`).", ephemeral=True)
+
+
 class AdminRankGroup(app_commands.Group, name="adminranks", description="Custom server rank management (server premium)"):
     def __init__(self, bot):
         super().__init__()
         self.bot = bot
 
     def _check(self, interaction: discord.Interaction) -> bool:
-        return is_bot_admin(interaction)
+        return is_server_admin(interaction)
 
     @app_commands.command(name="add", description="Add a custom rank tier for this server (server premium required)")
     @app_commands.describe(min_elo="Minimum ELO for this rank", name="Rank name", emoji="Emoji prefix (optional)")

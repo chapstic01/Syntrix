@@ -208,6 +208,7 @@ class ScoreView(discord.ui.View):
 
             await db.complete_match(self.match_id, winner_id)
             self.stop()
+            self.bot.dispatch("match_state_changed", self.match_id, winner_id, self.p1_id, self.p2_id, self.mode)
 
             w_user = await self.bot.fetch_user(winner_id)
             l_user = await self.bot.fetch_user(loser_id)
@@ -277,6 +278,8 @@ class ReportView(discord.ui.View):
 
             await db.complete_match(self.match_id, winner_id)
             self.stop()
+            self.bot.dispatch("match_state_changed", self.match_id, winner_id, self.p1_id, self.p2_id, self.mode)
+
             w_user = await self.bot.fetch_user(winner_id)
             l_user = await self.bot.fetch_user(loser_id)
             embed = discord.Embed(

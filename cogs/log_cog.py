@@ -1,20 +1,6 @@
-import datetime
 import discord
 from discord.ext import commands
 from config import ADMIN_USER_ID
-
-
-def _fmt_options(options: list) -> str:
-    if not options:
-        return ""
-    parts = []
-    for opt in options:
-        name = opt.get("name", "?")
-        value = opt.get("value", "")
-        if isinstance(value, str) and len(str(value)) > 40:
-            value = str(value)[:40] + "…"
-        parts.append(f"`{name}:{value}`")
-    return " " + " ".join(parts)
 
 
 class LogCog(commands.Cog):
@@ -33,103 +19,89 @@ class LogCog(commands.Cog):
         except Exception as e:
             print(f"[log] Could not DM owner: {e}")
 
-    # ── Slash commands & interactions ─────────────────────────────────────────
+    # ── Slash commands only (not buttons/selects — too noisy) ─────────────────
 
     @commands.Cog.listener()
     async def on_interaction(self, interaction: discord.Interaction):
-        ts = int(interaction.created_at.timestamp())
+        if interaction.type != discord.InteractionType.application_command:
+            return
+        cmd = interaction.command
+        name = f"/{cmd.qualified_name}" if cmd else "/unknown"
+        opts = _fmt_options(interaction.data.get("options", []))
         guild = f"{interaction.guild.name} (`{interaction.guild_id}`)" if interaction.guild else "DM"
         user = f"{interaction.user} (`{interaction.user.id}`)"
+        ts = int(interaction.created_at.timestamp())
+        await self._log(
+            f"🔧 **{name}**{opts}\n"
+            f"👤 {user}\n"
+            f"🏠 {guild}\n"
+            f"⏰ <t:{ts}:f>"
+        )
 
-        if interaction.type == discord.InteractionType.application_command:
-            cmd = interaction.command
-            name = f"/{cmd.qualified_name}" if cmd else "/unknown"
-            opts = _fmt_options(interaction.data.get("options", []))
-            await self._log(
-                f"🔧 **Command** {name}{opts}\n"
-                f"👤 {user}\n"
-                f"🏠 {guild}\n"
-                f"⏰ <t:{ts}:f>"
-            )
-
-        elif interaction.type == discord.InteractionType.component:
-            custom_id = interaction.data.get("custom_id", "unknown")
-            await self._log(
-                f"🖱️ **Button/Select** `{custom_id}`\n"
-                f"👤 {user}\n"
-                f"🏠 {guild}\n"
-                f"⏰ <t:{ts}:f>"
-            )
-
-        elif interaction.type == discord.InteractionType.modal_submit:
-            custom_id = interaction.data.get("custom_id", "unknown")
-            await self._log(
-                f"📝 **Modal submit** `{custom_id}`\n"
-                f"👤 {user}\n"
-                f"🏠 {guild}\n"
-                f"⏰ <t:{ts}:f>"
-            )
-
-    # ── Bot-sent messages ─────────────────────────────────────────────────────
+    # ── Match events ──────────────────────────────────────────────────────────
 
     @commands.Cog.listener()
-    async def on_message(self, message: discord.Message):
-        if not self.bot.user or message.author.id != self.bot.user.id:
+    async def on_match_found(self, match_id: int, p1_id: int, p2_id: int, mode: str):
+        try:
+            p1 = await self.bot.fetch_user(p1_id)
+            p2 = await self.bot.fetch_user(p2_id)
+            await self._log(
+                f"🟡 **Match #{match_id} started** · `{mode}`\n"
+                f"👥 {p1} vs {p2}"
+            )
+        except Exception as e:
+            await self._log(f"🟡 **Match #{match_id} started** · `{mode}`")
+
+    @commands.Cog.listener()
+    async def on_match_state_changed(self, match_id: int = 0, winner_id: int = 0,
+                                     p1_id: int = 0, p2_id: int = 0, mode: str = ""):
+        if not match_id:
             return
-
-        # Avoid infinite loop: never log DMs sent to the owner
-        if isinstance(message.channel, discord.DMChannel):
-            try:
-                if message.channel.recipient and message.channel.recipient.id == ADMIN_USER_ID:
-                    return
-            except Exception:
-                pass
-
-        ts = int(message.created_at.timestamp())
-
-        if isinstance(message.channel, discord.DMChannel):
-            try:
-                dest = f"DM → {message.channel.recipient}"
-            except Exception:
-                dest = "DM → unknown"
-        elif hasattr(message.channel, "guild") and message.channel.guild:
-            dest = f"{message.channel.guild.name} #{message.channel.name}"
-        else:
-            dest = str(message.channel)
-
-        embed_note = (
-            f" +{len(message.embeds)} embed{'s' if len(message.embeds) != 1 else ''}"
-            if message.embeds else ""
-        )
-        content = message.content
-        preview = f"\n> {content[:120]}{'…' if len(content) > 120 else ''}" if content else ""
-
-        await self._log(
-            f"📨 **Bot message**\n"
-            f"📍 {dest}{embed_note}\n"
-            f"⏰ <t:{ts}:f>"
-            f"{preview}"
-        )
+        try:
+            winner = await self.bot.fetch_user(winner_id) if winner_id else None
+            p1 = await self.bot.fetch_user(p1_id) if p1_id else None
+            p2 = await self.bot.fetch_user(p2_id) if p2_id else None
+            players = f"{p1} vs {p2}" if p1 and p2 else ""
+            result = f"\n🏆 Winner: **{winner}**" if winner else "\n❌ Match cancelled"
+            await self._log(
+                f"✅ **Match #{match_id} ended** · `{mode}`\n"
+                f"👥 {players}{result}"
+            )
+        except Exception:
+            await self._log(f"✅ **Match #{match_id} ended**")
 
     # ── Server join / leave ───────────────────────────────────────────────────
 
     @commands.Cog.listener()
     async def on_guild_join(self, guild: discord.Guild):
+        import datetime
         ts = int(datetime.datetime.now(datetime.timezone.utc).timestamp())
-        owner_id = guild.owner_id
         await self._log(
             f"✅ **Bot added to server**\n"
             f"🏠 {guild.name} (`{guild.id}`)\n"
             f"👥 {guild.member_count} members\n"
-            f"👑 Owner ID: `{owner_id}`\n"
             f"⏰ <t:{ts}:f>"
         )
 
     @commands.Cog.listener()
     async def on_guild_remove(self, guild: discord.Guild):
+        import datetime
         ts = int(datetime.datetime.now(datetime.timezone.utc).timestamp())
         await self._log(
             f"❌ **Bot removed from server**\n"
             f"🏠 {guild.name} (`{guild.id}`)\n"
             f"⏰ <t:{ts}:f>"
         )
+
+
+def _fmt_options(options: list) -> str:
+    if not options:
+        return ""
+    parts = []
+    for opt in options:
+        name = opt.get("name", "?")
+        value = str(opt.get("value", ""))
+        if len(value) > 40:
+            value = value[:40] + "…"
+        parts.append(f"`{name}:{value}`")
+    return " " + " ".join(parts)

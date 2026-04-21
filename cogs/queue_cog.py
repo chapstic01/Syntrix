@@ -50,6 +50,7 @@ class QueueCog(commands.Cog):
         premium = await db.is_premium(interaction.user.id)
         server_id = interaction.guild_id or 0
         await db.enqueue(interaction.user.id, server_id, player["elo"], mode=mode)
+        interaction.client.dispatch("queue_changed")
 
         rank = get_rank(player["elo"])
         color = discord.Color.purple() if premium else discord.Color.green()
@@ -74,6 +75,7 @@ class QueueCog(commands.Cog):
             await interaction.response.send_message("You are not in the queue.", ephemeral=True)
             return
         await db.dequeue(interaction.user.id)
+        interaction.client.dispatch("queue_changed")
         await interaction.response.send_message("You left the queue.", ephemeral=True)
 
     @app_commands.command(name="queue", description="Show who is currently in the queue")
