@@ -162,6 +162,47 @@ class HelpCog(commands.Cog):
         embed = _build_embed(HELP_PAGES["overview"])
         await interaction.response.send_message(embed=embed, view=HelpView(), ephemeral=True)
 
+    @app_commands.command(name="welcome", description="Post a Syntrix introduction embed in this channel")
+    async def welcome_cmd(self, interaction: discord.Interaction):
+        embed = discord.Embed(
+            title="Welcome to Syntrix Matchmaking",
+            description=(
+                "Syntrix connects players across every Discord server into a **single global matchmaking queue**. "
+                "Compete by ELO, earn rank titles, and climb the leaderboard across timed seasons."
+            ),
+            color=ACCENT,
+        )
+        embed.add_field(
+            name="Getting Started",
+            value=(
+                "`/join` — enter the queue\n"
+                "`/leave` — exit the queue\n"
+                "`/profile` — view your ELO & stats\n"
+                "`/leaderboard` — top 10 players\n"
+                "`/modes` — available game modes"
+            ),
+            inline=True,
+        )
+        embed.add_field(
+            name="How Matching Works",
+            value=(
+                "You're matched with a player near your ELO.\n"
+                "Both players confirm via a **Ready Check DM**.\n"
+                "Report results in DM — ELO updates automatically.\n"
+                "Range expands every 60 s if no match is found."
+            ),
+            inline=True,
+        )
+        embed.add_field(
+            name="⭐ Premium",
+            value="Get **priority matching** with a 1.5× wider search range.\nActivate with `/premium <license_key>`.",
+            inline=False,
+        )
+        embed.set_footer(text="Type /help for a full command reference  •  Syntrix Global Matchmaking")
+        if BOT_INVITE_URL and BOT_INVITE_URL != "#":
+            embed.add_field(name="Add to Your Server", value=f"[Invite Syntrix]({BOT_INVITE_URL})", inline=False)
+        await interaction.response.send_message(embed=embed)
+
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message):
         if message.author.bot:
