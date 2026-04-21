@@ -8,6 +8,7 @@ from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from config import (
     BOT_INVITE_URL, SESSION_SECRET, ADMIN_USER_ID,
     DISCORD_CLIENT_ID, DISCORD_CLIENT_SECRET, DISCORD_REDIRECT_URI,
+    DASHBOARD_URL,
     get_rank,
 )
 
@@ -628,7 +629,20 @@ async def dashboard(request: Request, path: str = ""):
 
 @app.get("/", response_class=HTMLResponse)
 async def index():
-    return HTMLResponse(PUBLIC_HTML.replace("{{INVITE_URL}}", BOT_INVITE_URL))
+    dash_nav = (
+        f'<a href="{DASHBOARD_URL}" class="btn-inv" target="_blank" '
+        f'style="background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.15);">Dashboard</a>'
+        if DASHBOARD_URL else ""
+    )
+    dash_hero = (
+        f'<a href="{DASHBOARD_URL}" class="btn-s" target="_blank">Dashboard</a>'
+        if DASHBOARD_URL else ""
+    )
+    html = (PUBLIC_HTML
+            .replace("{{INVITE_URL}}", BOT_INVITE_URL)
+            .replace("{{DASHBOARD_BTN_NAV}}", dash_nav)
+            .replace("{{DASHBOARD_BTN_HERO}}", dash_hero))
+    return HTMLResponse(html)
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -742,6 +756,7 @@ footer{border-top:1px solid var(--border);margin-top:80px;padding:40px 0;text-al
     <a href="#queue" class="nl">Queue</a>
     <a href="#matches" class="nl">Matches</a>
     <a href="{{INVITE_URL}}" class="btn-inv" target="_blank">+ Add to Discord</a>
+    {{DASHBOARD_BTN_NAV}}
   </div>
 </div></div></nav>
 
@@ -752,6 +767,7 @@ footer{border-top:1px solid var(--border);margin-top:80px;padding:40px 0;text-al
     <p>Cross-server competitive matchmaking. ELO-ranked, fair, and always on.</p>
     <div class="actions">
       <a href="{{INVITE_URL}}" class="btn-p" target="_blank">Add to Your Server</a>
+      {{DASHBOARD_BTN_HERO}}
       <a href="#leaderboard" class="btn-s">View Leaderboard</a>
     </div>
   </div>
