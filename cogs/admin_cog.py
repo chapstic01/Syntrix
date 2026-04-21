@@ -398,7 +398,15 @@ class AdminGroup(app_commands.Group, name="admin", description="Admin-only playe
         embed.add_field(name="Game Assignments", value=game_lines, inline=False)
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
-    @app_commands.command(name="addrank", description="Add a custom rank tier for this server (server premium required)")
+class AdminRankGroup(app_commands.Group, name="adminranks", description="Custom server rank management (server premium)"):
+    def __init__(self, bot):
+        super().__init__()
+        self.bot = bot
+
+    def _check(self, interaction: discord.Interaction) -> bool:
+        return is_bot_admin(interaction)
+
+    @app_commands.command(name="add", description="Add a custom rank tier for this server (server premium required)")
     @app_commands.describe(min_elo="Minimum ELO for this rank", name="Rank name", emoji="Emoji prefix (optional)")
     async def add_rank(self, interaction: discord.Interaction, min_elo: app_commands.Range[int, 0, 9999], name: str, emoji: str = ""):
         if not self._check(interaction):
@@ -414,7 +422,7 @@ class AdminGroup(app_commands.Group, name="admin", description="Admin-only playe
         display = f"{emoji} {name}" if emoji else name
         await interaction.response.send_message(f"Rank **{display}** added at ≥{min_elo} ELO.", ephemeral=True)
 
-    @app_commands.command(name="removerank", description="Remove a custom rank tier")
+    @app_commands.command(name="remove", description="Remove a custom rank tier")
     @app_commands.describe(min_elo="The minimum ELO of the rank to remove")
     async def remove_rank(self, interaction: discord.Interaction, min_elo: int):
         if not self._check(interaction):
@@ -426,7 +434,7 @@ class AdminGroup(app_commands.Group, name="admin", description="Admin-only playe
         await db.remove_server_rank(interaction.guild_id, min_elo)
         await interaction.response.send_message(f"Rank at ≥{min_elo} ELO removed.", ephemeral=True)
 
-    @app_commands.command(name="listranks", description="Show this server's custom rank tiers")
+    @app_commands.command(name="list", description="Show this server's custom rank tiers")
     async def list_ranks(self, interaction: discord.Interaction):
         if not self._check(interaction):
             await interaction.response.send_message("Not authorised.", ephemeral=True)
@@ -437,7 +445,7 @@ class AdminGroup(app_commands.Group, name="admin", description="Admin-only playe
         ranks = await db.get_server_ranks(interaction.guild_id)
         if not ranks:
             await interaction.response.send_message(
-                "No custom ranks set — using global defaults. Add ranks with `/admin addrank`.", ephemeral=True
+                "No custom ranks set — using global defaults. Add ranks with `/adminranks add`.", ephemeral=True
             )
             return
         lines = [f"**≥{r['min_elo']} ELO** → {r['emoji']} {r['name']}".strip() for r in ranks]
@@ -446,7 +454,7 @@ class AdminGroup(app_commands.Group, name="admin", description="Admin-only playe
             description="\n".join(lines),
             color=0x7c3aed,
         )
-        embed.set_footer(text="Server premium feature  •  Use /admin addrank or /admin removerank to manage")
+        embed.set_footer(text="Server premium feature  •  Use /adminranks add or /adminranks remove to manage")
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
 
@@ -454,3 +462,4 @@ class AdminCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.admin_group = AdminGroup(bot)
+        self.admin_rank_group = AdminRankGroup(bot)

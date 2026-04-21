@@ -47,6 +47,7 @@ class MatchmakingBot(commands.Bot):
         await self.add_cog(update_cog)
 
         self.tree.add_command(admin_cog.admin_group)
+        self.tree.add_command(admin_cog.admin_rank_group)
         self.tree.add_command(season_cog.season_group)
 
         await self.tree.sync()
