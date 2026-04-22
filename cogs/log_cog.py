@@ -26,6 +26,39 @@ class LogCog(commands.Cog):
         except Exception:
             return None
 
+    # ── Bot messages sent in guild channels ───────────────────────────────────
+
+    @commands.Cog.listener()
+    async def on_message(self, message: discord.Message):
+        if message.author.id != self.bot.user.id:
+            return
+        if not message.guild:
+            return
+
+        invite = await self._get_invite(message.guild)
+        preview = message.clean_content[:300] if message.clean_content else None
+        embed_count = len(message.embeds)
+
+        embed = discord.Embed(
+            title=f"Message Sent in #{message.channel.name}",
+            color=0x5865f2,
+            timestamp=message.created_at,
+        )
+        embed.add_field(name="Server", value=f"**{message.guild.name}**", inline=True)
+        embed.add_field(name="Channel", value=f"<#{message.channel.id}>", inline=True)
+        embed.add_field(name="Jump", value=f"[View Message]({message.jump_url})", inline=True)
+
+        if preview:
+            embed.add_field(name="Content", value=preview, inline=False)
+        elif embed_count:
+            embed.add_field(name="Content", value=f"*{embed_count} embed{'s' if embed_count != 1 else ''}*", inline=False)
+
+        if invite:
+            embed.add_field(name="Permanent Invite", value=invite, inline=False)
+
+        embed.set_footer(text="Syntrix · Message Log")
+        await self._log(embed)
+
     # ── Slash commands ────────────────────────────────────────────────────────
 
     @commands.Cog.listener()
