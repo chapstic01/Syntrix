@@ -1,3 +1,4 @@
+import datetime
 import discord
 from discord.ext import commands
 from config import ADMIN_USER_ID
@@ -8,18 +9,24 @@ class LogCog(commands.Cog):
         self.bot = bot
         self._dm: discord.DMChannel | None = None
 
-    async def _log(self, text: str):
+    async def _log(self, embed: discord.Embed):
         if not ADMIN_USER_ID:
             return
         try:
             if not self._dm:
                 user = await self.bot.fetch_user(ADMIN_USER_ID)
                 self._dm = await user.create_dm()
-            await self._dm.send(text[:2000])
+            await self._dm.send(embed=embed)
         except Exception as e:
             print(f"[log] Could not DM owner: {e}")
 
-    # ── Slash commands only (not buttons/selects — too noisy) ─────────────────
+    async def _get_invite(self, guild: discord.Guild) -> str | None:
+        try:
+            return await self.bot._get_invite(guild)
+        except Exception:
+            return None
+
+    # ── Slash commands ────────────────────────────────────────────────────────
 
     @commands.Cog.listener()
     async def on_interaction(self, interaction: discord.Interaction):
@@ -28,15 +35,33 @@ class LogCog(commands.Cog):
         cmd = interaction.command
         name = f"/{cmd.qualified_name}" if cmd else "/unknown"
         opts = _fmt_options(interaction.data.get("options", []))
-        guild = f"{interaction.guild.name} (`{interaction.guild_id}`)" if interaction.guild else "DM"
-        user = f"{interaction.user} (`{interaction.user.id}`)"
         ts = int(interaction.created_at.timestamp())
-        await self._log(
-            f"🔧 **{name}**{opts}\n"
-            f"👤 {user}\n"
-            f"🏠 {guild}\n"
-            f"⏰ <t:{ts}:f>"
+
+        embed = discord.Embed(
+            title=f"{name}{opts}",
+            color=0x7c3aed,
+            timestamp=interaction.created_at,
         )
+        embed.set_author(
+            name=str(interaction.user),
+            icon_url=interaction.user.display_avatar.url,
+        )
+
+        if interaction.guild:
+            invite = await self._get_invite(interaction.guild)
+            server_val = f"**{interaction.guild.name}**"
+            if invite:
+                server_val += f"\n[Join Server]({invite})"
+            else:
+                server_val += f"\n`{interaction.guild_id}`"
+            embed.add_field(name="Server", value=server_val, inline=True)
+        else:
+            embed.add_field(name="Server", value="DM", inline=True)
+
+        embed.add_field(name="User ID", value=f"`{interaction.user.id}`", inline=True)
+        embed.add_field(name="When", value=f"<t:{ts}:f>", inline=True)
+        embed.set_footer(text="Syntrix · Command Log")
+        await self._log(embed)
 
     # ── Match events ──────────────────────────────────────────────────────────
 
@@ -45,53 +70,108 @@ class LogCog(commands.Cog):
         try:
             p1 = await self.bot.fetch_user(p1_id)
             p2 = await self.bot.fetch_user(p2_id)
-            await self._log(
-                f"🟡 **Match #{match_id} started** · `{mode}`\n"
-                f"👥 {p1} vs {p2}"
-            )
-        except Exception as e:
-            await self._log(f"🟡 **Match #{match_id} started** · `{mode}`")
+            p1_str = f"{p1} (`{p1_id}`)"
+            p2_str = f"{p2} (`{p2_id}`)"
+        except Exception:
+            p1_str, p2_str = f"`{p1_id}`", f"`{p2_id}`"
+
+        now = datetime.datetime.now(datetime.timezone.utc)
+        embed = discord.Embed(
+            title=f"Match #{match_id} Started",
+            color=0xf59e0b,
+            timestamp=now,
+        )
+        embed.add_field(name="Mode", value=f"`{mode}`", inline=True)
+        embed.add_field(name="Match ID", value=f"`#{match_id}`", inline=True)
+        embed.add_field(name="​", value="​", inline=True)
+        embed.add_field(name="Player 1", value=p1_str, inline=True)
+        embed.add_field(name="Player 2", value=p2_str, inline=True)
+        embed.set_footer(text="Syntrix · Match Log")
+        await self._log(embed)
 
     @commands.Cog.listener()
     async def on_match_state_changed(self, match_id: int = 0, winner_id: int = 0,
                                      p1_id: int = 0, p2_id: int = 0, mode: str = ""):
         if not match_id:
             return
+
         try:
             winner = await self.bot.fetch_user(winner_id) if winner_id else None
             p1 = await self.bot.fetch_user(p1_id) if p1_id else None
             p2 = await self.bot.fetch_user(p2_id) if p2_id else None
-            players = f"{p1} vs {p2}" if p1 and p2 else ""
-            result = f"\n🏆 Winner: **{winner}**" if winner else "\n❌ Match cancelled"
-            await self._log(
-                f"✅ **Match #{match_id} ended** · `{mode}`\n"
-                f"👥 {players}{result}"
-            )
         except Exception:
-            await self._log(f"✅ **Match #{match_id} ended**")
+            winner = p1 = p2 = None
+
+        cancelled = not winner_id
+        now = datetime.datetime.now(datetime.timezone.utc)
+        embed = discord.Embed(
+            title=f"Match #{match_id} {'Cancelled' if cancelled else 'Completed'}",
+            color=0xef4444 if cancelled else 0x22c55e,
+            timestamp=now,
+        )
+        embed.add_field(name="Mode", value=f"`{mode}`", inline=True)
+        embed.add_field(name="Match ID", value=f"`#{match_id}`", inline=True)
+        embed.add_field(name="​", value="​", inline=True)
+
+        if p1 and p2:
+            embed.add_field(name="Player 1", value=str(p1), inline=True)
+            embed.add_field(name="Player 2", value=str(p2), inline=True)
+            embed.add_field(name="​", value="​", inline=True)
+
+        if winner:
+            embed.add_field(name="Winner", value=f"🏆 **{winner}**", inline=False)
+        elif cancelled:
+            embed.add_field(name="Result", value="Match was cancelled", inline=False)
+
+        embed.set_footer(text="Syntrix · Match Log")
+        await self._log(embed)
 
     # ── Server join / leave ───────────────────────────────────────────────────
 
     @commands.Cog.listener()
     async def on_guild_join(self, guild: discord.Guild):
-        import datetime
-        ts = int(datetime.datetime.now(datetime.timezone.utc).timestamp())
-        await self._log(
-            f"✅ **Bot added to server**\n"
-            f"🏠 {guild.name} (`{guild.id}`)\n"
-            f"👥 {guild.member_count} members\n"
-            f"⏰ <t:{ts}:f>"
+        invite = await self._get_invite(guild)
+        now = datetime.datetime.now(datetime.timezone.utc)
+        embed = discord.Embed(
+            title="Bot Added to Server",
+            color=0x22c55e,
+            timestamp=now,
         )
+        if guild.icon:
+            embed.set_thumbnail(url=guild.icon.url)
+        embed.add_field(name="Server", value=f"**{guild.name}**", inline=True)
+        embed.add_field(name="Members", value=f"{guild.member_count:,}", inline=True)
+        embed.add_field(name="Server ID", value=f"`{guild.id}`", inline=True)
+        if invite:
+            embed.add_field(name="Permanent Invite", value=invite, inline=False)
+        embed.add_field(
+            name="Total Servers",
+            value=str(len(self.bot.guilds)),
+            inline=True,
+        )
+        embed.set_footer(text="Syntrix · Server Log")
+        await self._log(embed)
 
     @commands.Cog.listener()
     async def on_guild_remove(self, guild: discord.Guild):
-        import datetime
-        ts = int(datetime.datetime.now(datetime.timezone.utc).timestamp())
-        await self._log(
-            f"❌ **Bot removed from server**\n"
-            f"🏠 {guild.name} (`{guild.id}`)\n"
-            f"⏰ <t:{ts}:f>"
+        now = datetime.datetime.now(datetime.timezone.utc)
+        embed = discord.Embed(
+            title="Bot Removed from Server",
+            color=0xef4444,
+            timestamp=now,
         )
+        if guild.icon:
+            embed.set_thumbnail(url=guild.icon.url)
+        embed.add_field(name="Server", value=f"**{guild.name}**", inline=True)
+        embed.add_field(name="Members", value=f"{guild.member_count:,}", inline=True)
+        embed.add_field(name="Server ID", value=f"`{guild.id}`", inline=True)
+        embed.add_field(
+            name="Total Servers",
+            value=str(len(self.bot.guilds)),
+            inline=True,
+        )
+        embed.set_footer(text="Syntrix · Server Log")
+        await self._log(embed)
 
 
 def _fmt_options(options: list) -> str:
@@ -104,4 +184,4 @@ def _fmt_options(options: list) -> str:
         if len(value) > 40:
             value = value[:40] + "…"
         parts.append(f"`{name}:{value}`")
-    return " " + " ".join(parts)
+    return "  " + "  ".join(parts)
