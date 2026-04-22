@@ -8,11 +8,9 @@ from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from config import (
     BOT_INVITE_URL, SESSION_SECRET, ADMIN_USER_ID,
     DISCORD_CLIENT_ID, DISCORD_CLIENT_SECRET, DISCORD_REDIRECT_URI,
-    DASHBOARD_URL,
+    DASHBOARD_URL, DB_PATH,
     get_rank,
 )
-
-DB_PATH = "matchmaking.db"
 app = FastAPI()
 
 AUTH_COOKIE = "sx_sess"

@@ -1,10 +1,10 @@
+import os
 import aiosqlite
-from config import INITIAL_ELO, DEFAULT_QUEUE_MODES
-
-DB_PATH = "matchmaking.db"
+from config import INITIAL_ELO, DEFAULT_QUEUE_MODES, DB_PATH
 
 
 async def init_db():
+    os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
     async with aiosqlite.connect(DB_PATH) as db:
         db.row_factory = aiosqlite.Row
         await db.executescript("""

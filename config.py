@@ -15,6 +15,7 @@ SESSION_SECRET = os.getenv("SESSION_SECRET", "change-me-in-production")
 DISCORD_CLIENT_ID = os.getenv("DISCORD_CLIENT_ID", "")
 DISCORD_CLIENT_SECRET = os.getenv("DISCORD_CLIENT_SECRET", "")
 DISCORD_REDIRECT_URI = os.getenv("DISCORD_REDIRECT_URI", "http://localhost:8000/dashboard/callback")
+DB_PATH = os.getenv("DB_PATH", "/data/matchmaking.db")
 
 INITIAL_ELO = 1000
 ELO_K_FACTOR = 32
