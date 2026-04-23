@@ -141,12 +141,14 @@ class AdminGroup(app_commands.Group, name="admin", description="Server and bot a
     @app_commands.describe(
         queue_channel="Channel for the live queue panel",
         results_channel="Channel for match results and match log",
+        post_channel="Channel to publicly announce when a match is found",
     )
     async def setup_server(
         self,
         interaction: discord.Interaction,
         queue_channel: discord.TextChannel = None,
         results_channel: discord.TextChannel = None,
+        post_channel: discord.TextChannel = None,
     ):
         if not self._server_check(interaction):
             await interaction.response.send_message("Not authorised. You must be a server admin or the bot owner.", ephemeral=True)
@@ -160,6 +162,8 @@ class AdminGroup(app_commands.Group, name="admin", description="Server and bot a
             kwargs["queue_channel_id"] = queue_channel.id
         if results_channel:
             kwargs["results_channel_id"] = results_channel.id
+        if post_channel:
+            kwargs["post_channel_id"] = post_channel.id
         if kwargs:
             await db.update_server_config(interaction.guild_id, **kwargs)
 
@@ -176,6 +180,7 @@ class AdminGroup(app_commands.Group, name="admin", description="Server and bot a
 
         queue_ch = ch(cfg.get("queue_channel_id"))
         results_ch = ch(cfg.get("results_channel_id"))
+        post_ch = ch(cfg.get("post_channel_id"))
         update_ch = ch(cfg.get("update_channel_id"))
         category = ch(cfg.get("match_category_id"))
 
@@ -184,13 +189,14 @@ class AdminGroup(app_commands.Group, name="admin", description="Server and bot a
 
         embed = discord.Embed(
             title=f"⚙️ Server Setup — {interaction.guild.name}",
-            color=discord.Color.from_str("#7c3aed"),
+            color=discord.Color.from_str("#dc2626"),
         )
         embed.add_field(
             name="📢 Channels",
             value=(
                 f"Queue: {queue_ch}\n"
                 f"Results: {results_ch}\n"
+                f"Match Posts: {post_ch}\n"
                 f"Updates: {update_ch}\n"
                 f"Match Category: {category}"
             ),

@@ -453,6 +453,22 @@ class MatchCog(commands.Cog):
                     await user.send(embed=embed, view=view)
                 except discord.Forbidden:
                     pass
+
+            # Public post channel announcement
+            post_ch_id = cfg.get("post_channel_id") if cfg else None
+            if post_ch_id:
+                post_ch = self.bot.get_channel(post_ch_id)
+                if post_ch:
+                    ann = discord.Embed(
+                        title=f"⚔️ Match Found — {mode_label}",
+                        description=f"**{p1_name}** vs **{p2_name}**\nBoth players have been DMed — check your DMs!",
+                        color=discord.Color.orange(),
+                    )
+                    ann.set_footer(text=f"Match #{match_id} · {mode_label}")
+                    try:
+                        await post_ch.send(embed=ann)
+                    except Exception:
+                        pass
         except Exception as e:
             print(f"[match_found] {e}")
 

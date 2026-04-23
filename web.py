@@ -146,6 +146,7 @@ async def dash_servers(request: Request):
         cfg = cfg_map.get(r["guild_id"], {})
         r["queue_channel_id"] = cfg.get("queue_channel_id")
         r["results_channel_id"] = cfg.get("results_channel_id")
+        r["post_channel_id"] = cfg.get("post_channel_id")
     return JSONResponse(rows)
 
 
@@ -158,7 +159,7 @@ async def dash_server_config(server_id: int, request: Request):
         await db.execute(
             "INSERT OR IGNORE INTO server_config (server_id) VALUES (?)", (server_id,)
         )
-        for key in ("queue_channel_id", "results_channel_id"):
+        for key in ("queue_channel_id", "results_channel_id", "post_channel_id"):
             if key in body:
                 await db.execute(
                     f"UPDATE server_config SET {key}=? WHERE server_id=?",
@@ -340,7 +341,8 @@ async def dash_update_server_settings(server_id: int, request: Request):
         return JSONResponse({"error": "unauthorized"}, status_code=401)
     body = await request.json()
     allowed = ("score_mode", "require_evidence", "rounds_per_match", "rematch_cooldown",
-               "anonymous_queue", "match_category_id", "update_channel_id", "server_premium")
+               "anonymous_queue", "match_category_id", "update_channel_id", "server_premium",
+               "post_channel_id")
     async with aiosqlite.connect(DB_PATH) as db:
         await db.execute("INSERT OR IGNORE INTO server_config (server_id) VALUES (?)", (server_id,))
         for key in allowed:
@@ -437,6 +439,7 @@ async def dash_my_servers(request: Request):
         cfg = cfg_map.get(r["guild_id"], {})
         r["queue_channel_id"] = cfg.get("queue_channel_id")
         r["results_channel_id"] = cfg.get("results_channel_id")
+        r["post_channel_id"] = cfg.get("post_channel_id")
     return JSONResponse(rows)
 
 
@@ -655,29 +658,29 @@ PUBLIC_HTML = """<!DOCTYPE html>
 <title>Syntrix — Competitive Matchmaking</title>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet"/>
 <style>
-:root{--bg:#07070f;--card:#0e0e1c;--border:rgba(139,92,246,.15);--border-h:rgba(139,92,246,.4);--accent:#7c3aed;--accent2:#a855f7;--glow:rgba(124,58,237,.25);--text:#f1f5f9;--muted:#64748b;--sub:#94a3b8;--green:#10b981;--red:#ef4444;--gold:#f59e0b;--silver:#94a3b8;--bronze:#b45309;--r:16px}
+:root{--bg:#07070f;--card:#0e0e1c;--border:rgba(220,38,38,.15);--border-h:rgba(220,38,38,.4);--accent:#dc2626;--accent2:#f59e0b;--glow:rgba(220,38,38,.25);--text:#f1f5f9;--muted:#64748b;--sub:#94a3b8;--green:#10b981;--red:#ef4444;--gold:#f59e0b;--silver:#94a3b8;--bronze:#b45309;--r:16px}
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 html{scroll-behavior:smooth}
 body{font-family:Inter,sans-serif;background:var(--bg);color:var(--text);min-height:100vh;overflow-x:hidden}
 .orb{position:fixed;border-radius:50%;filter:blur(120px);pointer-events:none;z-index:0;opacity:.3}
-.o1{width:600px;height:600px;background:#4c1d95;top:-200px;left:-200px}
-.o2{width:500px;height:500px;background:#1e1b4b;bottom:-150px;right:-100px}
-.o3{width:300px;height:300px;background:#6d28d9;top:40%;left:50%;transform:translateX(-50%);opacity:.12}
+.o1{width:600px;height:600px;background:#7f1d1d;top:-200px;left:-200px}
+.o2{width:500px;height:500px;background:#1c1007;bottom:-150px;right:-100px}
+.o3{width:300px;height:300px;background:#991b1b;top:40%;left:50%;transform:translateX(-50%);opacity:.12}
 .page{position:relative;z-index:1}
 .wrap{max-width:1100px;margin:0 auto;padding:0 24px}
 nav{border-bottom:1px solid var(--border);backdrop-filter:blur(20px);background:rgba(7,7,15,.85);position:sticky;top:0;z-index:100}
 .nav-i{display:flex;align-items:center;justify-content:space-between;height:64px}
-.logo{font-size:22px;font-weight:900;letter-spacing:3px;background:linear-gradient(135deg,#a855f7,#7c3aed,#6366f1);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.logo{font-size:22px;font-weight:900;letter-spacing:3px;background:linear-gradient(135deg,#f59e0b,#dc2626);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
 .nav-links{display:flex;gap:8px;align-items:center}
 .nl{color:var(--sub);text-decoration:none;font-size:14px;font-weight:500;padding:8px 14px;border-radius:8px;transition:all .2s}
 .nl:hover{color:var(--text);background:rgba(255,255,255,.05)}
 .btn-inv{background:linear-gradient(135deg,var(--accent),var(--accent2));color:#fff;text-decoration:none;font-size:14px;font-weight:600;padding:9px 20px;border-radius:10px;transition:all .2s;box-shadow:0 0 20px var(--glow)}
 .btn-inv:hover{transform:translateY(-1px);box-shadow:0 0 30px var(--glow)}
 .hero{text-align:center;padding:100px 0 70px}
-.badge{display:inline-flex;align-items:center;gap:8px;background:rgba(124,58,237,.12);border:1px solid var(--border);border-radius:100px;padding:6px 16px;font-size:13px;color:var(--accent2);font-weight:500;margin-bottom:28px}
+.badge{display:inline-flex;align-items:center;gap:8px;background:rgba(220,38,38,.12);border:1px solid var(--border);border-radius:100px;padding:6px 16px;font-size:13px;color:var(--accent2);font-weight:500;margin-bottom:28px}
 .dot{width:6px;height:6px;border-radius:50%;background:var(--green);box-shadow:0 0 8px var(--green);animation:pulse 2s infinite}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
-h1{font-size:clamp(52px,8vw,96px);font-weight:900;letter-spacing:-2px;line-height:1;background:linear-gradient(135deg,#fff 0%,#a855f7 50%,#7c3aed 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:20px}
+h1{font-size:clamp(52px,8vw,96px);font-weight:900;letter-spacing:-2px;line-height:1;background:linear-gradient(135deg,#fff 0%,#f59e0b 50%,#dc2626 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:20px}
 .hero p{font-size:18px;color:var(--sub);max-width:480px;margin:0 auto 40px;line-height:1.6}
 .actions{display:flex;gap:12px;justify-content:center;flex-wrap:wrap}
 .btn-p{background:linear-gradient(135deg,var(--accent),var(--accent2));color:#fff;text-decoration:none;font-size:15px;font-weight:600;padding:13px 28px;border-radius:12px;transition:all .2s;box-shadow:0 0 30px var(--glow);border:none;cursor:pointer}
@@ -698,7 +701,7 @@ h1{font-size:clamp(52px,8vw,96px);font-weight:900;letter-spacing:-2px;line-heigh
 .sec{margin-bottom:60px}
 .sh{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px}
 .st{font-size:18px;font-weight:700;display:flex;align-items:center;gap:10px}
-.si{width:32px;height:32px;border-radius:8px;background:rgba(124,58,237,.2);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:16px}
+.si{width:32px;height:32px;border-radius:8px;background:rgba(220,38,38,.2);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:16px}
 .rfbtn{background:none;border:1px solid var(--border);color:var(--muted);font-size:12px;padding:6px 12px;border-radius:8px;cursor:pointer;font-family:inherit;transition:all .2s;font-weight:500}
 .rfbtn:hover{border-color:var(--border-h);color:var(--text)}
 .card{background:var(--card);border:1px solid var(--border);border-radius:var(--r);overflow:hidden}
@@ -709,7 +712,7 @@ tr:last-child td{border-bottom:none}
 tr:hover td{background:rgba(255,255,255,.02)}
 .rank{font-weight:700;font-size:15px;width:40px}
 .rank-1{color:var(--gold)}.rank-2{color:var(--silver)}.rank-3{color:var(--bronze)}.rank-other{color:var(--muted)}
-.elo-b{display:inline-flex;align-items:center;background:rgba(124,58,237,.12);border:1px solid rgba(124,58,237,.25);color:var(--accent2);font-weight:700;font-size:13px;padding:3px 10px;border-radius:6px}
+.elo-b{display:inline-flex;align-items:center;background:rgba(245,158,11,.12);border:1px solid rgba(245,158,11,.25);color:var(--accent2);font-weight:700;font-size:13px;padding:3px 10px;border-radius:6px}
 .wl{font-size:13px}.wins{color:var(--green);font-weight:600}.losses{color:var(--red);font-weight:600}.sep{color:var(--muted);margin:0 3px}
 .bdg{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:600;padding:3px 10px;border-radius:100px;text-transform:uppercase;letter-spacing:.5px}
 .bdg-a{background:rgba(16,185,129,.12);color:var(--green);border:1px solid rgba(16,185,129,.25)}
@@ -726,19 +729,19 @@ tr:hover td{background:rgba(255,255,255,.02)}
 .ei{font-size:40px;margin-bottom:12px;opacity:.4}
 .wr-bar{height:4px;background:rgba(255,255,255,.06);border-radius:2px;margin-top:4px;overflow:hidden}
 .wr-fill{height:100%;background:linear-gradient(90deg,var(--accent),var(--accent2));border-radius:2px;transition:width .6s ease}
-.premium-cta{background:linear-gradient(135deg,rgba(124,58,237,.15),rgba(168,85,247,.1));border:1px solid var(--border-h);border-radius:var(--r);padding:48px 40px;text-align:center;margin-bottom:60px}
-.premium-cta h2{font-size:32px;font-weight:800;margin-bottom:12px;background:linear-gradient(135deg,#fff,#a855f7);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.premium-cta{background:linear-gradient(135deg,rgba(220,38,38,.12),rgba(245,158,11,.08));border:1px solid var(--border-h);border-radius:var(--r);padding:48px 40px;text-align:center;margin-bottom:60px}
+.premium-cta h2{font-size:32px;font-weight:800;margin-bottom:12px;background:linear-gradient(135deg,#fff,#f59e0b);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
 .premium-cta p{color:var(--sub);margin-bottom:28px;font-size:16px}
 .perks{display:flex;gap:20px;justify-content:center;flex-wrap:wrap;margin-bottom:28px}
 .perk{font-size:14px;color:var(--sub)}
 footer{border-top:1px solid var(--border);margin-top:80px;padding:40px 0;text-align:center;color:var(--muted);font-size:13px}
-.fl{font-size:18px;font-weight:900;letter-spacing:3px;background:linear-gradient(135deg,#a855f7,#7c3aed);-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:10px}
+.fl{font-size:18px;font-weight:900;letter-spacing:3px;background:linear-gradient(135deg,#f59e0b,#dc2626);-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:10px}
 .cmd-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px}
 .cmd-group{background:var(--card);border:1px solid var(--border);border-radius:var(--r);padding:20px 22px}
 .cg-label{font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:1.2px;margin-bottom:12px}
 .cmd-list{display:flex;flex-direction:column;gap:8px}
 .cmd-row{display:flex;align-items:baseline;justify-content:space-between;gap:12px;font-size:13px}
-.cmd-row code{background:rgba(124,58,237,.12);color:#a855f7;padding:2px 8px;border-radius:5px;font-size:12px;white-space:nowrap;flex-shrink:0}
+.cmd-row code{background:rgba(245,158,11,.12);color:#f59e0b;padding:2px 8px;border-radius:5px;font-size:12px;white-space:nowrap;flex-shrink:0}
 .cmd-row span{color:var(--muted);text-align:right;font-size:12px}
 @media(max-width:640px){.stats{grid-template-columns:1fr}.hero{padding:60px 0 40px}th,td{padding:12px 14px}.nav-links .nl{display:none}.cmd-grid{grid-template-columns:1fr}}
 </style>
@@ -925,7 +928,7 @@ async function loadLeaderboard(){
   tb.innerHTML=d.map((p,i)=>{
     const pos=i+1,total=p.wins+p.losses,wr=total>0?Math.round(p.wins/total*100):0;
     const pc=pos<=3?`rank-${pos}`:'rank-other';
-    const pm=p.is_premium?'<span style="color:#a855f7;font-size:12px;margin-left:4px">⭐</span>':'';
+    const pm=p.is_premium?'<span style="color:#f59e0b;font-size:12px;margin-left:4px">⭐</span>':'';
     return`<tr><td><span class="rank ${pc}">${medals[pos]||pos}</span></td><td><strong>${esc(p.username)}</strong>${pm}</td><td><span class="elo-b">${p.elo}</span></td><td style="font-size:13px;color:var(--sub)">${esc(p.rank||'')}</td><td class="wl"><span class="wins">${p.wins}W</span><span class="sep">/</span><span class="losses">${p.losses}L</span></td><td><span style="font-size:13px;font-weight:600;color:var(--sub)">${wr}%</span><div class="wr-bar"><div class="wr-fill" style="width:${wr}%"></div></div></td></tr>`;
   }).join('');
 }
@@ -933,8 +936,8 @@ async function loadQueue(){
   const d=await jf('/api/queue');const c=document.getElementById('queue-wrap');
   if(!d||!d.length){c.innerHTML='<div class="empty"><div class="ei">🎯</div>Queue is empty — join with /join!</div>';return}
   c.innerHTML='<div class="qg">'+d.map(p=>{
-    const star=p.is_premium?'<span style="color:#a855f7">⭐</span> ':'';
-    const mb=`<span style="font-size:10px;background:rgba(124,58,237,.15);border:1px solid rgba(124,58,237,.3);color:#a855f7;padding:1px 6px;border-radius:4px;margin-left:4px">${esc(p.mode||'ranked')}</span>`;
+    const star=p.is_premium?'<span style="color:#f59e0b">⭐</span> ':'';
+    const mb=`<span style="font-size:10px;background:rgba(245,158,11,.15);border:1px solid rgba(245,158,11,.3);color:#f59e0b;padding:1px 6px;border-radius:4px;margin-left:4px">${esc(p.mode||'ranked')}</span>`;
     return`<div class="qc"><div class="qa">${esc(ini(p.username))}</div><div><div class="qn">${star}${esc(p.username)}${mb}</div><div class="qe">ELO ${p.elo_at_join}</div></div></div>`;
   }).join('')+'</div>';
 }
@@ -966,10 +969,10 @@ LOGIN_HTML = """<!DOCTYPE html>
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:Inter,sans-serif;background:#07070f;color:#f1f5f9;min-height:100vh;display:flex;align-items:center;justify-content:center}
 .orb{position:fixed;border-radius:50%;filter:blur(120px);pointer-events:none;opacity:.3}
-.o1{width:500px;height:500px;background:#4c1d95;top:-200px;left:-200px}
-.o2{width:400px;height:400px;background:#1e1b4b;bottom:-100px;right:-100px}
+.o1{width:500px;height:500px;background:#7f1d1d;top:-200px;left:-200px}
+.o2{width:400px;height:400px;background:#1c1007;bottom:-100px;right:-100px}
 .box{position:relative;z-index:1;background:#0e0e1c;border:1px solid rgba(139,92,246,.2);border-radius:20px;padding:48px 40px;width:100%;max-width:400px;text-align:center}
-.logo{font-size:24px;font-weight:900;letter-spacing:3px;background:linear-gradient(135deg,#a855f7,#7c3aed);-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:8px}
+.logo{font-size:24px;font-weight:900;letter-spacing:3px;background:linear-gradient(135deg,#f59e0b,#dc2626);-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:8px}
 .sub{font-size:14px;color:#64748b;margin-bottom:8px}
 .notice{font-size:12px;color:#475569;margin-bottom:32px;line-height:1.5}
 .btn-discord{display:flex;align-items:center;justify-content:center;gap:12px;width:100%;background:#5865f2;color:#fff;border:none;border-radius:12px;padding:14px;font-size:15px;font-weight:600;cursor:pointer;font-family:inherit;transition:all .2s;text-decoration:none;box-shadow:0 0 24px rgba(88,101,242,.35)}
@@ -1017,8 +1020,8 @@ DASHBOARD_HTML = """<!DOCTYPE html>
 :root{
   --bg:#0e1117;--sidebar:#13181f;--sidebar-h:#1a2130;
   --bg2:#1c2232;--bg3:#232b3e;--bg4:#2a3347;
-  --accent:#7c3aed;--accent2:#a855f7;--accent-dim:rgba(124,58,237,.15);--accent-glow:rgba(124,58,237,.25);
-  --border:rgba(255,255,255,.07);--border-h:rgba(124,58,237,.45);
+  --accent:#dc2626;--accent2:#f59e0b;--accent-dim:rgba(220,38,38,.13);--accent-glow:rgba(220,38,38,.22);
+  --border:rgba(255,255,255,.07);--border-h:rgba(220,38,38,.45);
   --text:#e2e8f0;--text2:#94a3b8;--muted:#64748b;
   --green:#22c55e;--green-bg:rgba(34,197,94,.1);--green-border:rgba(34,197,94,.25);
   --red:#ef4444;--red-bg:rgba(239,68,68,.1);--red-border:rgba(239,68,68,.25);
@@ -1046,11 +1049,11 @@ body{font-family:Inter,sans-serif;background:var(--bg);color:var(--text);min-hei
   font-size:15px;font-weight:900;letter-spacing:1px;color:#fff;flex-shrink:0;
 }
 .sb-logo-text{font-size:14px;font-weight:800;letter-spacing:2px;
-  background:linear-gradient(135deg,#c084fc,#7c3aed);
+  background:linear-gradient(135deg,#f59e0b,#dc2626);
   -webkit-background-clip:text;-webkit-text-fill-color:transparent;}
 .sb-logo-badge{font-size:9px;font-weight:700;letter-spacing:1px;
-  background:rgba(124,58,237,.18);border:1px solid rgba(124,58,237,.3);
-  color:#a78bfa;padding:2px 6px;border-radius:4px;-webkit-text-fill-color:#a78bfa;
+  background:rgba(220,38,38,.18);border:1px solid rgba(220,38,38,.3);
+  color:#f59e0b;padding:2px 6px;border-radius:4px;-webkit-text-fill-color:#f59e0b;
   display:block;margin-top:1px;}
 .sb-nav{flex:1;padding:10px 10px}
 .sb-section{
@@ -1065,7 +1068,7 @@ body{font-family:Inter,sans-serif;background:var(--bg);color:var(--text);min-hei
   white-space:nowrap;
 }
 .tb:hover{background:var(--sidebar-h);color:var(--text)}
-.tb.active{background:var(--accent-dim);color:#c084fc;font-weight:600}
+.tb.active{background:var(--accent-dim);color:#f59e0b;font-weight:600}
 .tb.active::before{
   content:'';position:absolute;left:0;top:50%;transform:translateY(-50%);
   width:3px;height:60%;background:var(--accent2);border-radius:0 3px 3px 0;
@@ -1115,7 +1118,7 @@ h2{font-size:20px;font-weight:700;color:var(--text);margin-bottom:20px;letter-sp
 .stat-icon{font-size:22px;margin-bottom:12px;display:block}
 .stat-val{font-size:30px;font-weight:800;color:var(--text);line-height:1;letter-spacing:-1px}
 .stat-val.green{color:var(--green)}
-.stat-val.purple{background:linear-gradient(135deg,#c084fc,#7c3aed);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.stat-val.purple{background:linear-gradient(135deg,#f59e0b,#dc2626);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
 .stat-lbl{font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.8px;margin-top:6px}
 
 /* ─────────────────────── CARDS ─────────────────────── */
@@ -1177,8 +1180,8 @@ select option{background:var(--bg3)}
 .btn-ghost:hover{background:rgba(255,255,255,.09);color:var(--text);border-color:var(--border-h)}
 .btn-danger{background:var(--red-bg);color:var(--red);border:1px solid var(--red-border)}
 .btn-danger:hover{background:rgba(239,68,68,.18)}
-.btn-purple{background:rgba(124,58,237,.14);color:#c084fc;border:1px solid rgba(124,58,237,.3)}
-.btn-purple:hover{background:rgba(124,58,237,.22)}
+.btn-purple{background:rgba(245,158,11,.14);color:#f59e0b;border:1px solid rgba(245,158,11,.3)}
+.btn-purple:hover{background:rgba(245,158,11,.22)}
 .btn-sm{padding:5px 12px;font-size:12px}
 .btn-xs{padding:3px 9px;font-size:11px}
 
@@ -1186,14 +1189,14 @@ select option{background:var(--bg3)}
 .badge{display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:700;padding:3px 8px;border-radius:5px}
 .badge-green{background:var(--green-bg);color:var(--green);border:1px solid var(--green-border)}
 .badge-red{background:var(--red-bg);color:var(--red);border:1px solid var(--red-border)}
-.badge-purple{background:rgba(124,58,237,.14);color:#c084fc;border:1px solid rgba(124,58,237,.3)}
+.badge-purple{background:rgba(245,158,11,.14);color:#f59e0b;border:1px solid rgba(245,158,11,.3)}
 .badge-yellow{background:var(--yellow-bg);color:var(--yellow);border:1px solid var(--yellow-border)}
 .badge-muted{background:rgba(255,255,255,.05);color:var(--muted);border:1px solid var(--border)}
 /* keep .tag aliases for old JS */
 .tag{display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:700;padding:3px 8px;border-radius:5px}
 .tag-green{background:var(--green-bg);color:var(--green);border:1px solid var(--green-border)}
 .tag-red{background:var(--red-bg);color:var(--red);border:1px solid var(--red-border)}
-.tag-purple{background:rgba(124,58,237,.14);color:#c084fc;border:1px solid rgba(124,58,237,.3)}
+.tag-purple{background:rgba(245,158,11,.14);color:#f59e0b;border:1px solid rgba(245,158,11,.3)}
 .tag-gold{background:var(--yellow-bg);color:var(--gold);border:1px solid var(--yellow-border)}
 
 /* ─────────────────────── SERVER CARDS ─────────────────────── */
@@ -1229,7 +1232,7 @@ select option{background:var(--bg3)}
   display:flex;align-items:center;gap:6px;transition:all .1s;
 }
 .con-ch-item:hover{background:var(--sidebar-h);color:var(--text)}
-.con-ch-item.active{background:var(--accent-dim);color:#c084fc}
+.con-ch-item.active{background:var(--accent-dim);color:#f59e0b}
 .con-ch-cat{
   padding:10px 12px 4px;font-size:10px;font-weight:700;color:var(--muted);
   text-transform:uppercase;letter-spacing:.6px;
@@ -1260,7 +1263,7 @@ select option{background:var(--bg3)}
 /* ─────────────────────── MISC ─────────────────────── */
 .empty{padding:48px 20px;text-align:center;color:var(--muted);font-size:13px}
 .empty-icon{font-size:32px;margin-bottom:10px;display:block;opacity:.4}
-code.pill{background:rgba(124,58,237,.12);color:#c084fc;padding:2px 7px;border-radius:4px;font-size:12px;font-family:monospace}
+code.pill{background:rgba(245,158,11,.12);color:#f59e0b;padding:2px 7px;border-radius:4px;font-size:12px;font-family:monospace}
 .divider{height:1px;background:var(--border);margin:6px 0}
 
 /* ─────────────────────── TOAST ─────────────────────── */
@@ -1381,8 +1384,8 @@ code.pill{background:rgba(124,58,237,.12);color:#c084fc;padding:2px 7px;border-r
     </div>
     <div class="card">
       <div class="tbl-wrap"><table>
-        <thead><tr><th>Server</th><th>Members</th><th>Queue Channel</th><th>Results Channel</th><th>Actions</th></tr></thead>
-        <tbody id="servers-body"><tr><td colspan="5"><div class="empty"><span class="empty-icon">🖥️</span>Loading servers…</div></td></tr></tbody>
+        <thead><tr><th>Server</th><th>Members</th><th>Queue Channel</th><th>Results Channel</th><th>Post Channel</th><th>Actions</th></tr></thead>
+        <tbody id="servers-body"><tr><td colspan="6"><div class="empty"><span class="empty-icon">🖥️</span>Loading servers…</div></td></tr></tbody>
       </table></div>
     </div>
   </div>
@@ -1521,10 +1524,11 @@ code.pill{background:rgba(124,58,237,.12);color:#c084fc;padding:2px 7px;border-r
       <div id="sub-channels" class="sub-page">
         <div class="card"><div class="card-head"><div class="card-title">📡 Channel Configuration</div></div>
           <div class="card-body">
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:16px">
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px">
               <div class="fg"><label>Queue Channel ID</label><input id="sub-queue-ch" placeholder="Discord channel ID" style="width:100%"/></div>
               <div class="fg"><label>Results Channel ID</label><input id="sub-results-ch" placeholder="Discord channel ID" style="width:100%"/></div>
             </div>
+            <div class="fg" style="margin-bottom:16px"><label>Match Post Channel ID <span style="font-size:10px;color:var(--muted)">(public match found announcements)</span></label><input id="sub-post-ch" placeholder="Discord channel ID (optional)" style="width:100%"/></div>
             <button class="btn btn-primary" onclick="saveSubChannels()">Save Channels</button>
           </div>
         </div>
@@ -1617,9 +1621,10 @@ code.pill{background:rgba(124,58,237,.12);color:#c084fc;padding:2px 7px;border-r
 <!-- Server Config Modal -->
 <div class="modal-overlay" id="server-modal">
   <div class="modal">
-    <div class="modal-title">Configure Server</div>
-    <div class="fg"><label>Queue Channel ID</label><input id="m-queue-ch" placeholder="Discord channel ID"/></div>
-    <div class="fg"><label>Results Channel ID</label><input id="m-results-ch" placeholder="Discord channel ID"/></div>
+    <div class="modal-title">Configure Server Channels</div>
+    <div class="fg" style="margin-bottom:12px"><label>Queue Channel ID</label><input id="m-queue-ch" placeholder="Discord channel ID" style="width:100%"/></div>
+    <div class="fg" style="margin-bottom:12px"><label>Results Channel ID</label><input id="m-results-ch" placeholder="Discord channel ID" style="width:100%"/></div>
+    <div class="fg" style="margin-bottom:12px"><label>Match Post Channel ID <span style="font-size:10px;color:var(--muted)">(public match announcements)</span></label><input id="m-post-ch" placeholder="Discord channel ID (optional)" style="width:100%"/></div>
     <input type="hidden" id="m-server-id"/>
     <div class="modal-actions">
       <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
@@ -1696,23 +1701,26 @@ async function loadServers(){
   if(!d||!d.length){tb.innerHTML='<tr><td colspan="5"><div class="empty">No servers connected yet.</div></td></tr>';return}
   tb.innerHTML=d.map(s=>`<tr>
     <td><div style="font-weight:600">${esc(s.name)}</div><div class="cell-sub">${s.guild_id}</div></td>
-    <td>${s.member_count.toLocaleString()}</td>
+    <td>${(s.member_count||0).toLocaleString()}</td>
     <td><span style="font-size:12px;color:var(--muted)">${s.queue_channel_id||'—'}</span></td>
     <td><span style="font-size:12px;color:var(--muted)">${s.results_channel_id||'—'}</span></td>
-    <td><div style="display:flex;gap:5px"><button class="btn btn-ghost btn-xs" onclick="openServerModal(${s.guild_id},'${esc(s.name)}',${s.queue_channel_id||"''"},${s.results_channel_id||"''"})">Channels</button><button class="btn btn-xs" style="background:rgba(124,58,237,.12);color:#c084fc;border:1px solid rgba(124,58,237,.25)" onclick="openSettingsModal(${s.guild_id},'${esc(s.name)}')">Settings</button></div></td>
+    <td><span style="font-size:12px;color:var(--muted)">${s.post_channel_id||'—'}</span></td>
+    <td><div style="display:flex;gap:5px"><button class="btn btn-ghost btn-xs" onclick="openServerModal(${s.guild_id},'${esc(s.name)}',${s.queue_channel_id||"''"},${s.results_channel_id||"''"},${s.post_channel_id||"''"})">Channels</button><button class="btn btn-xs" style="background:rgba(245,158,11,.12);color:#f59e0b;border:1px solid rgba(245,158,11,.25)" onclick="openSettingsModal(${s.guild_id},'${esc(s.name)}')">Settings</button></div></td>
   </tr>`).join('');
 }
-function openServerModal(id,name,qch,rch){
+function openServerModal(id,name,qch,rch,pch){
   document.getElementById('m-server-id').value=id;
   document.getElementById('m-queue-ch').value=qch||'';
   document.getElementById('m-results-ch').value=rch||'';
+  document.getElementById('m-post-ch').value=pch||'';
   document.getElementById('server-modal').classList.add('open');
 }
 async function saveServerConfig(){
   const id=document.getElementById('m-server-id').value;
   const qch=document.getElementById('m-queue-ch').value||null;
   const rch=document.getElementById('m-results-ch').value||null;
-  const r=await api(`/api/dash/server/${id}/config`,{method:'POST',body:JSON.stringify({queue_channel_id:qch,results_channel_id:rch})});
+  const pch=document.getElementById('m-post-ch').value||null;
+  const r=await api(`/api/dash/server/${id}/config`,{method:'POST',body:JSON.stringify({queue_channel_id:qch,results_channel_id:rch,post_channel_id:pch})});
   if(r.ok){toast('Server config saved');closeModal();loadServers()}else toast('Error saving config',false);
 }
 let playerOffset=0;
@@ -1733,7 +1741,7 @@ async function loadPlayers(reset=true){
       <button class="btn btn-ghost btn-xs" onclick="resetStats(${p.discord_id},'${esc(p.username)}')" style="color:var(--muted)">Reset</button>
       ${p.is_premium
         ?`<button class="btn btn-danger btn-xs" onclick="togglePremium(${p.discord_id},false,'${esc(p.username)}')">Revoke ⭐</button>`
-        :`<button class="btn btn-xs" style="background:rgba(124,58,237,.12);color:#c084fc;border:1px solid rgba(124,58,237,.25)" onclick="togglePremium(${p.discord_id},true,'${esc(p.username)}')">Grant ⭐</button>`
+        :`<button class="btn btn-xs" style="background:rgba(245,158,11,.12);color:#f59e0b;border:1px solid rgba(245,158,11,.25)" onclick="togglePremium(${p.discord_id},true,'${esc(p.username)}')">Grant ⭐</button>`
       }
     </div></td>
   </tr>`).join('');
@@ -1960,6 +1968,7 @@ async function openMyServer(id,name){
   const d=await api(`/api/dash/server/${id}/settings`);
   document.getElementById('sub-queue-ch').value=d.queue_channel_id||'';
   document.getElementById('sub-results-ch').value=d.results_channel_id||'';
+  document.getElementById('sub-post-ch').value=d.post_channel_id||'';
   document.getElementById('sub-score-mode').value=d.score_mode?1:0;
   document.getElementById('sub-req-ev').value=d.require_evidence?1:0;
   document.getElementById('sub-rounds').value=d.rounds_per_match||'';
@@ -1976,7 +1985,11 @@ async function openMyServer(id,name){
 function backToMyServers(){_msServerId=null;loadMyServers()}
 async function saveSubChannels(){
   const id=_msServerId;
-  const r=await api(`/api/dash/server/${id}/config`,{method:'POST',body:JSON.stringify({queue_channel_id:document.getElementById('sub-queue-ch').value||null,results_channel_id:document.getElementById('sub-results-ch').value||null})});
+  const r=await api(`/api/dash/server/${id}/config`,{method:'POST',body:JSON.stringify({
+    queue_channel_id:document.getElementById('sub-queue-ch').value||null,
+    results_channel_id:document.getElementById('sub-results-ch').value||null,
+    post_channel_id:document.getElementById('sub-post-ch').value||null,
+  })});
   r.ok?toast('Channels saved'):toast('Error',false);
 }
 async function saveSubSettings(){

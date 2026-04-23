@@ -148,6 +148,7 @@ async def init_db():
             "ALTER TABLE matches ADD COLUMN p1_score INTEGER",
             "ALTER TABLE matches ADD COLUMN p2_score INTEGER",
             "ALTER TABLE matches ADD COLUMN map_played TEXT",
+            "ALTER TABLE server_config ADD COLUMN post_channel_id INTEGER",
         ]
         for sql in _migrations:
             try:
