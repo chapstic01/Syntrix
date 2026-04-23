@@ -93,7 +93,7 @@ async def _build_queue_embed(guild_id: int) -> discord.Embed:
     embed = discord.Embed(
         title="🎮 Matchmaking Queue",
         description="\n".join(lines) if lines else "No queue modes configured yet.",
-        color=discord.Color.from_str("#7c3aed"),
+        color=discord.Color.from_str("#f59e0b"),
     )
     embed.set_footer(text="Select a mode below to join  •  Syntrix Global Matchmaking")
     embed.timestamp = discord.utils.utcnow()

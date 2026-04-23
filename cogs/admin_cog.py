@@ -349,7 +349,7 @@ class AdminGroup(app_commands.Group, name="admin", description="Server and bot a
         for r in rows:
             g = GAMES.get(r["game_id"], {})
             lines.append(f"**{r['queue_mode']}** → {g.get('name', r['game_id'])} ({len(g.get('maps', []))} maps)")
-        embed = discord.Embed(title="Server Game Configuration", description="\n".join(lines), color=0x7c3aed)
+        embed = discord.Embed(title="Server Game Configuration", description="\n".join(lines), color=0xf59e0b)
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
     # ── Match settings ────────────────────────────────────────────────────────
@@ -475,7 +475,7 @@ class AdminGroup(app_commands.Group, name="admin", description="Server and bot a
             for g in games
         ) or "None configured"
         cooldown_m = int(cfg.get("rematch_cooldown") or 0) // 60
-        embed = discord.Embed(title=f"Server Settings — {interaction.guild.name}", color=0x7c3aed)
+        embed = discord.Embed(title=f"Server Settings — {interaction.guild.name}", color=0xf59e0b)
         embed.add_field(name="Score Mode", value="On" if cfg.get("score_mode") else "Off", inline=True)
         embed.add_field(name="Require Evidence", value="Yes" if cfg.get("require_evidence") else "No", inline=True)
         embed.add_field(name="Rounds/Match", value=str(cfg.get("rounds_per_match") or "Unlimited"), inline=True)
@@ -594,7 +594,7 @@ class AdminRankGroup(app_commands.Group, name="adminranks", description="Custom 
         embed = discord.Embed(
             title=f"Custom Ranks — {interaction.guild.name}",
             description="\n".join(lines),
-            color=0x7c3aed,
+            color=0xf59e0b,
         )
         embed.set_footer(text="Server premium feature  •  Use /adminranks add or /adminranks remove to manage")
         await interaction.response.send_message(embed=embed, ephemeral=True)

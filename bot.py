@@ -134,7 +134,7 @@ class MatchmakingBot(commands.Bot):
                 "**Global competitive matchmaking for Discord.**\n"
                 "Players from every server compete in one ELO-ranked queue."
             ),
-            color=discord.Color.from_str("#7c3aed"),
+            color=discord.Color.from_str("#f59e0b"),
         )
         embed.add_field(
             name="For Players",

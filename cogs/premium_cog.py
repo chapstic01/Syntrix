@@ -66,7 +66,7 @@ class PremiumCog(commands.Cog):
                         f"{buy_line}, then activate with:\n"
                         "`/premium license_key:<your-key>`"
                     ),
-                    color=discord.Color.from_str("#7c3aed"),
+                    color=discord.Color.from_str("#f59e0b"),
                 )
             await interaction.followup.send(embed=embed, ephemeral=True)
             return
@@ -119,6 +119,6 @@ class PremiumCog(commands.Cog):
                 f"**Expires:** {expires}\n\n"
                 "Unlocks: up to 3 game queues, custom rank names, and more."
             ),
-            color=discord.Color.from_str("#7c3aed"),
+            color=discord.Color.from_str("#f59e0b"),
         )
         await interaction.response.send_message(embed=embed)

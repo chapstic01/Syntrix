@@ -72,7 +72,7 @@ class LogCog(commands.Cog):
 
         embed = discord.Embed(
             title=f"{name}{opts}",
-            color=0x7c3aed,
+            color=0xf59e0b,
             timestamp=interaction.created_at,
         )
         embed.set_author(

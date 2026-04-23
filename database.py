@@ -4,7 +4,10 @@ from config import INITIAL_ELO, DEFAULT_QUEUE_MODES, DB_PATH
 
 
 async def init_db():
-    os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
+    db_dir = os.path.dirname(os.path.abspath(DB_PATH))
+    os.makedirs(db_dir, exist_ok=True)
+    print(f"[db] Using database at: {os.path.abspath(DB_PATH)}")
+    print(f"[db] Directory exists: {os.path.isdir(db_dir)}, writable: {os.access(db_dir, os.W_OK)}")
     async with aiosqlite.connect(DB_PATH) as db:
         db.row_factory = aiosqlite.Row
         await db.executescript("""

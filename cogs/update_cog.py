@@ -28,7 +28,7 @@ class BroadcastModal(discord.ui.Modal, title="Broadcast Syntrix Update"):
         embed = discord.Embed(
             title=self.update_title.value,
             description=self.message.value,
-            color=0x7c3aed,
+            color=0xf59e0b,
         )
         embed.set_author(name="Syntrix Update", icon_url=self.bot.user.display_avatar.url)
         embed.set_footer(text="Syntrix Global Matchmaking")

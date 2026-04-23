@@ -138,7 +138,7 @@ class QueueCog(commands.Cog):
                 f"Type `/join mode:{mode}` to enter the queue and get matched by ELO.\n"
                 f"Ready checks are sent via DM — make sure your DMs are open."
             ),
-            color=discord.Color.from_str("#7c3aed"),
+            color=discord.Color.from_str("#f59e0b"),
         )
         embed.add_field(name="Mode", value=mode_name, inline=True)
         embed.add_field(name="In Queue", value=str(count), inline=True)

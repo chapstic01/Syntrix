@@ -74,7 +74,7 @@ class HistoryCog(commands.Cog):
         embed = discord.Embed(
             title=f"Match History — {target.display_name}",
             description="\n".join(lines),
-            color=0x7c3aed,
+            color=0xf59e0b,
         )
         embed.add_field(name="ELO", value=str(elo), inline=True)
         embed.add_field(name="Rank", value=rank, inline=True)
@@ -97,7 +97,7 @@ class HistoryCog(commands.Cog):
 
         embed = discord.Embed(
             title=f"Syntrix Stats — {interaction.guild.name}",
-            color=0x7c3aed,
+            color=0xf59e0b,
         )
         embed.add_field(name="Total Matches", value=str(s["total_matches"] or 0), inline=True)
         embed.add_field(name="Completed", value=str(s["completed"] or 0), inline=True)

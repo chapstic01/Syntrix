@@ -4,7 +4,7 @@ from discord.ext import commands
 from config import BOT_INVITE_URL, PREMIUM_URL, PREMIUM_PRICE, SUPPORT_SERVER, DASHBOARD_URL
 
 
-ACCENT = discord.Color.from_str("#7c3aed")
+ACCENT = discord.Color.from_str("#f59e0b")
 
 HELP_PAGES = {
     "overview": {
@@ -102,7 +102,7 @@ HELP_PAGES = {
                 + ", copy the license key from your receipt email, and paste it into `/premium`."
             )),
         ],
-        "color": discord.Color.from_str("#a855f7"),
+        "color": discord.Color.from_str("#fbbf24"),
     },
     "seasons": {
         "label": "Seasons",
@@ -141,7 +141,7 @@ HELP_PAGES = {
             ("`/admin serverpremium <on/off>`", "Enable server premium — unlocks up to 3 game queues."),
             ("`/admin serversettings`", "View all current settings for this server in one embed."),
         ],
-        "color": discord.Color.from_str("#7c3aed"),
+        "color": discord.Color.from_str("#f59e0b"),
     },
     "admin": {
         "label": "Admin — Players",
